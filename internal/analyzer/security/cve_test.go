@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vettcode/scanner/internal/analyzer/deps"
+	"github.com/vettcode/scanner/internal/analyzer/security/snapshot"
 )
 
 func TestLookupCVEs_OfflineSkipsNonSupported(t *testing.T) {
@@ -52,6 +54,76 @@ func TestCVSSToSeverity_VectorString(t *testing.T) {
 
 	// Unknown format falls back to medium
 	assert.Equal(t, "medium", cvssToSeverity("unknown"))
+}
+
+func TestLookupCVEs_OfflineWithSnapshot(t *testing.T) {
+	// Override snapshot with test data
+	snapshot.Override("2026-03-01", map[string][]snapshot.VulnEntry{
+		"npm:express": {
+			{ID: "CVE-2024-1234", Severity: "high", FixedVersion: "4.18.0", Introduced: "4.0.0"},
+			{ID: "CVE-2024-5678", Severity: "critical", FixedVersion: "4.17.2", Introduced: "4.17.0"},
+		},
+		"PyPI:requests": {
+			{ID: "CVE-2024-9999", Severity: "medium", FixedVersion: "2.32.0", Introduced: "2.0.0"},
+		},
+	})
+	defer snapshot.Reset()
+
+	dependencies := []deps.Dependency{
+		{Name: "express", Version: "4.17.1", Ecosystem: "npm"},
+		{Name: "requests", Version: "2.31.0", Ecosystem: "pypi"},
+		{Name: "laravel/framework", Version: "10.0.0", Ecosystem: "packagist"}, // not in snapshot
+	}
+
+	r := LookupCVEs(dependencies, true)
+
+	// Should find vulnerabilities from snapshot
+	require.GreaterOrEqual(t, len(r.Vulnerabilities), 2) // express 4.17.1 matches both CVEs
+
+	// Check that express CVEs were found
+	var foundHigh, foundCritical bool
+	for _, v := range r.Vulnerabilities {
+		if v.ID == "CVE-2024-1234" && v.Severity == "high" {
+			foundHigh = true
+		}
+		if v.ID == "CVE-2024-5678" && v.Severity == "critical" {
+			foundCritical = true
+		}
+	}
+	assert.True(t, foundHigh, "should find high severity CVE for express")
+	assert.True(t, foundCritical, "should find critical CVE for express 4.17.1 (< 4.17.2)")
+
+	// Packagist should be skipped (not in offline ecosystems)
+	assert.Contains(t, r.EcosystemsSkipped, "packagist")
+
+	// Summary should be computed
+	assert.Greater(t, r.Summary.Total, 0)
+
+	// Should include snapshot date warning
+	hasSnapshotWarning := false
+	for _, w := range r.Warnings {
+		if len(w) > 0 {
+			hasSnapshotWarning = true
+		}
+	}
+	assert.True(t, hasSnapshotWarning)
+}
+
+func TestLookupCVEs_OfflineVersionNotAffected(t *testing.T) {
+	snapshot.Override("2026-03-01", map[string][]snapshot.VulnEntry{
+		"npm:express": {
+			{ID: "CVE-2024-1234", Severity: "high", FixedVersion: "4.18.0", Introduced: "4.0.0"},
+		},
+	})
+	defer snapshot.Reset()
+
+	// Version 4.18.0 is the fix version, so it should NOT be affected
+	dependencies := []deps.Dependency{
+		{Name: "express", Version: "4.18.0", Ecosystem: "npm"},
+	}
+
+	r := LookupCVEs(dependencies, true)
+	assert.Equal(t, 0, r.Summary.Total, "fixed version should not match vulnerability")
 }
 
 func TestCVESummary(t *testing.T) {

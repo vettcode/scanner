@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/vettcode/scanner/internal/analyzer/deps"
+	"github.com/vettcode/scanner/internal/analyzer/security/snapshot"
 )
 
 // CVEResult holds the CVE lookup results.
@@ -86,9 +87,21 @@ var offlineEcosystems = map[string]bool{
 }
 
 // LookupCVEs queries OSV for known vulnerabilities.
+// In offline mode, uses the bundled OSV snapshot for supported ecosystems.
+// In online mode, queries the OSV API with automatic fallback to the snapshot on timeout.
 func LookupCVEs(dependencies []deps.Dependency, offline bool) *CVEResult {
 	r := &CVEResult{}
 	client := &http.Client{Timeout: 30 * time.Second}
+	fellBackToSnapshot := false // tracks whether we've already emitted the fallback warning
+
+	// Log snapshot availability in offline mode
+	if offline && snapshot.Available() {
+		snapshotDate := snapshot.Date()
+		if snapshotDate != "" {
+			r.Warnings = append(r.Warnings,
+				fmt.Sprintf("Using bundled OSV database (last updated: %s). CVE results may be up to 30 days old. To retry: run scan with network access.", snapshotDate))
+		}
+	}
 
 	for _, dep := range dependencies {
 		if dep.Version == "" {
@@ -101,7 +114,7 @@ func LookupCVEs(dependencies []deps.Dependency, offline bool) *CVEResult {
 		}
 
 		if offline && !offlineEcosystems[dep.Ecosystem] {
-			// Track skipped ecosystems
+			// Track skipped ecosystems (not covered by offline snapshot)
 			if !containsStr(r.EcosystemsSkipped, dep.Ecosystem) {
 				r.EcosystemsSkipped = append(r.EcosystemsSkipped, dep.Ecosystem)
 			}
@@ -109,25 +122,38 @@ func LookupCVEs(dependencies []deps.Dependency, offline bool) *CVEResult {
 		}
 
 		if offline {
-			// In offline mode, skip API calls
-			// TODO: bundled OSV snapshot lookup
+			// Offline mode: use bundled OSV snapshot
+			lookupSnapshot(r, dep, osvEco)
 			continue
 		}
 
+		// Online mode: query OSV API with snapshot fallback on error
 		vulns, err := queryOSV(client, dep.Name, dep.Version, osvEco)
 		if err != nil {
-			warning := fmt.Sprintf("CVE lookup failed for %s@%s (%s): %v", dep.Name, dep.Version, dep.Ecosystem, err)
-			r.Warnings = append(r.Warnings, warning)
+			// Fall back to bundled snapshot if available
+			if snapshot.Available() && offlineEcosystems[dep.Ecosystem] {
+				lookupSnapshot(r, dep, osvEco)
+				if !fellBackToSnapshot {
+					fellBackToSnapshot = true
+					snapshotDate := snapshot.Date()
+					r.Warnings = append(r.Warnings,
+						fmt.Sprintf("CVE lookup timed out. Using bundled OSV database (last updated: %s). CVE results may be up to 30 days old. To retry: run scan with network access.", snapshotDate))
+				}
+			} else {
+				r.Warnings = append(r.Warnings,
+					fmt.Sprintf("CVE lookup failed for %s@%s (%s): %v",
+						dep.Name, dep.Version, dep.Ecosystem, err))
+			}
 			continue
 		}
 		for _, v := range vulns {
 			r.Vulnerabilities = append(r.Vulnerabilities, Vulnerability{
-				ID:          v.id,
-				Severity:    v.severity,
-				Package:     dep.Name,
-				Version:     dep.Version,
+				ID:           v.id,
+				Severity:     v.severity,
+				Package:      dep.Name,
+				Version:      dep.Version,
 				FixedVersion: v.fixedVersion,
-				Ecosystem:   dep.Ecosystem,
+				Ecosystem:    dep.Ecosystem,
 			})
 		}
 	}
@@ -176,7 +202,8 @@ func queryOSV(client *http.Client, name, version, ecosystem string) ([]vulnInfo,
 		return nil, fmt.Errorf("HTTP %d from OSV API", resp.StatusCode)
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	// Limit response to 10 MB to guard against oversized responses
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
@@ -301,4 +328,19 @@ func containsStr(slice []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// lookupSnapshot performs a CVE lookup against the bundled OSV snapshot.
+func lookupSnapshot(r *CVEResult, dep deps.Dependency, osvEco string) {
+	entries := snapshot.Lookup(osvEco, dep.Name, dep.Version)
+	for _, e := range entries {
+		r.Vulnerabilities = append(r.Vulnerabilities, Vulnerability{
+			ID:           e.ID,
+			Severity:     e.Severity,
+			Package:      dep.Name,
+			Version:      dep.Version,
+			FixedVersion: e.FixedVersion,
+			Ecosystem:    dep.Ecosystem,
+		})
+	}
 }
