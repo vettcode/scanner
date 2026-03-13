@@ -15,6 +15,44 @@ type FunctionInfo struct {
 	MaxNesting int
 }
 
+// Summary holds aggregate complexity statistics for Go files.
+type Summary struct {
+	TotalFunctions int
+	AvgComplexity  float64
+	AvgNesting     float64
+	MaxComplexity  int
+	MaxNesting     int
+	HighComplexity int // functions with complexity > 10
+}
+
+// Summarize computes aggregate metrics from multiple Go function results.
+func Summarize(funcs []FunctionInfo) Summary {
+	var s Summary
+	totalComplexity := 0
+	totalNesting := 0
+
+	for _, fn := range funcs {
+		s.TotalFunctions++
+		totalComplexity += fn.Complexity
+		totalNesting += fn.MaxNesting
+		if fn.Complexity > s.MaxComplexity {
+			s.MaxComplexity = fn.Complexity
+		}
+		if fn.MaxNesting > s.MaxNesting {
+			s.MaxNesting = fn.MaxNesting
+		}
+		if fn.Complexity > 10 {
+			s.HighComplexity++
+		}
+	}
+
+	if s.TotalFunctions > 0 {
+		s.AvgComplexity = float64(totalComplexity) / float64(s.TotalFunctions)
+		s.AvgNesting = float64(totalNesting) / float64(s.TotalFunctions)
+	}
+	return s
+}
+
 // ParseFile parses a Go source file and returns its AST.
 func ParseFile(path string) (*ast.File, *token.FileSet, error) {
 	fset := token.NewFileSet()

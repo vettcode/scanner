@@ -220,3 +220,26 @@ func withCallback() {
 	assert.Equal(t, "(anonymous)", funcs[1].Name)
 	assert.Equal(t, 2, funcs[1].Complexity)
 }
+
+func TestSummarize(t *testing.T) {
+	funcs := []FunctionInfo{
+		{Name: "foo", Complexity: 5, MaxNesting: 2},
+		{Name: "bar", Complexity: 15, MaxNesting: 4},
+		{Name: "baz", Complexity: 1, MaxNesting: 0},
+	}
+
+	s := Summarize(funcs)
+	assert.Equal(t, 3, s.TotalFunctions)
+	assert.InDelta(t, 7.0, s.AvgComplexity, 0.01)
+	assert.InDelta(t, 2.0, s.AvgNesting, 0.01)
+	assert.Equal(t, 15, s.MaxComplexity)
+	assert.Equal(t, 4, s.MaxNesting)
+	assert.Equal(t, 1, s.HighComplexity)
+}
+
+func TestSummarize_Empty(t *testing.T) {
+	s := Summarize(nil)
+	assert.Equal(t, 0, s.TotalFunctions)
+	assert.Equal(t, 0.0, s.AvgComplexity)
+	assert.Equal(t, 0.0, s.AvgNesting)
+}
