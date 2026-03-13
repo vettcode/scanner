@@ -323,3 +323,82 @@ func TestScoreSecurity_AllBad(t *testing.T) {
 	})
 	assert.InDelta(t, 0.0, score, 0.01)
 }
+
+// --- Additional boundary value tests ---
+
+func TestScoreToGrade_ExactBoundaries(t *testing.T) {
+	// Test exact grade boundary values
+	boundaries := []struct {
+		score float64
+		want  models.Grade
+	}{
+		{93, models.GradeA},   // A starts at 93
+		{92.9, models.GradeAM}, // Just below A
+		{90, models.GradeAM},  // A- starts at 90
+		{89.9, models.GradeBP}, // Just below A-
+		{87, models.GradeBP},  // B+ starts at 87
+		{86.9, models.GradeB}, // Just below B+
+		{83, models.GradeB},   // B starts at 83
+		{82.9, models.GradeBM}, // Just below B
+		{80, models.GradeBM},  // B- starts at 80
+		{79.9, models.GradeCP}, // Just below B-
+		{77, models.GradeCP},  // C+ starts at 77
+		{76.9, models.GradeC}, // Just below C+
+		{73, models.GradeC},   // C starts at 73
+		{72.9, models.GradeCM}, // Just below C
+		{70, models.GradeCM},  // C- starts at 70
+		{69.9, models.GradeDP}, // Just below C-
+		{67, models.GradeDP},  // D+ starts at 67
+		{66.9, models.GradeD}, // Just below D+
+		{63, models.GradeD},   // D starts at 63
+		{62.9, models.GradeDM}, // Just below D
+		{60, models.GradeDM},  // D- starts at 60
+		{59.9, models.GradeF}, // Just below D-
+		{0, models.GradeF},    // Bottom
+	}
+	for _, tt := range boundaries {
+		got := ScoreToGrade(tt.score)
+		assert.Equal(t, tt.want, got, "score %.1f should be %s, got %s", tt.score, tt.want, got)
+	}
+}
+
+func TestScoreDependencyHealth_ExtremeOld(t *testing.T) {
+	score := ScoreDependencyHealth(DependencyHealthInput{
+		MedianAgeMonths: 120, // 10 years
+		UnmaintainedPct: 100, // all unmaintained
+	})
+	assert.InDelta(t, 0.0, score, 0.01)
+}
+
+func TestScoreHandoff_MediumDocDensity(t *testing.T) {
+	score := ScoreHandoff(HandoffInput{
+		EstTestCoveragePct: 30,
+		DocDensity:         models.DocDensityMedium,
+		EnvVarCount:        5,
+	})
+	// coverage = min(100, 30*1.25) = 37.5
+	// doc = 60 (medium)
+	// env = clamp(100 - max(0, (5-5))*3) = 100
+	// 37.5*0.50 + 60*0.25 + 100*0.25 = 18.75 + 15 + 25 = 58.75
+	assert.InDelta(t, 58.75, score, 0.01)
+}
+
+func TestOverallScore_SingleCategory(t *testing.T) {
+	scores := []CategoryScore{
+		{"security", 75},
+	}
+	// Only security (weight 0.25) present, renormalized to 100%
+	assert.InDelta(t, 75.0, OverallScore(scores), 0.01)
+}
+
+func TestScoreInfra_IaCOnly(t *testing.T) {
+	score := ScoreInfra(InfraInput{IaCDetected: true})
+	// 100*0.35 + 0 + 0 = 35
+	assert.InDelta(t, 35.0, score, 0.01)
+}
+
+func TestScoreInfra_MonitoringOnly(t *testing.T) {
+	score := ScoreInfra(InfraInput{MonitoringDetected: true})
+	// 0 + 0 + 100*0.25 = 25
+	assert.InDelta(t, 25.0, score, 0.01)
+}

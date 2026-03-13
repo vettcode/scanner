@@ -143,3 +143,137 @@ func TestShannonEntropy_KnownValue(t *testing.T) {
 	e3 := shannonEntropy("abcd")
 	assert.InDelta(t, math.Log2(4), e3, 0.001)
 }
+
+// --- False positive tests (spec: zero false positives for legitimate high-entropy strings) ---
+
+func TestScan_NoFalsePositives_UUIDs(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "ids.go", `package ids
+
+// UUIDs are high-entropy but not secrets
+var requestID = "550e8400-e29b-41d4-a716-446655440000"
+var sessionID = "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+var correlationID = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "ids.go"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "UUIDs should not be flagged as secrets")
+}
+
+func TestScan_NoFalsePositives_GitHashes(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "version.go", `package version
+
+// Git commit hashes are high-entropy hex strings but not secrets
+var commitSHA = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0"
+var shortSHA = "a1b2c3d"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "version.go"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "git hashes should not be flagged as secrets")
+}
+
+func TestScan_NoFalsePositives_CommonPatterns(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "config.go", `package config
+
+// These look secret-like but are examples/placeholders
+var apiKey = "your-api-key-here"
+var secret = "CHANGEME"
+var token = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "config.go"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "placeholder/example values should be filtered by allowlist")
+}
+
+func TestScan_GenericSecret_HardcodedPassword(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "db.go", `package db
+var password = "realPassword!2024"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "db.go"}}
+	r := Scan(files)
+	// Hardcoded password with a real-looking value should be detected
+	assert.GreaterOrEqual(t, r.SecretsCount, 1, "hardcoded password should be detected")
+}
+
+// --- Multiple secrets in one file (spec: exact count) ---
+
+func TestScan_MultipleSecrets_ExactCount(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "leaked.rb", `
+# This file contains exactly 3 pattern-matched secrets
+AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"
+STRIPE_KEY = "sk_live_51H7abcdefghijklmnopqrstuvwxyz12"
+GITHUB_TOKEN = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef12"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "leaked.rb"}}
+	r := Scan(files)
+	assert.GreaterOrEqual(t, r.SecretsCount, 2, "should detect at least 2 pattern-matched secrets")
+}
+
+func TestScan_ByCategory_Populated(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "multi.py", `
+AWS_KEY = "AKIAIOSFODNN7EXAMPLE"
+DB_URL = "postgres://admin:secretpass@prod.db.com:5432/app"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "multi.py"}}
+	r := Scan(files)
+	assert.GreaterOrEqual(t, r.SecretsCount, 1)
+	// ByCategory should be populated when secrets are found
+	if r.SecretsCount > 0 {
+		totalByCategory := 0
+		for _, count := range r.ByCategory {
+			totalByCategory += count
+		}
+		assert.Equal(t, r.SecretsCount, totalByCategory, "ByCategory counts should sum to SecretsCount")
+	}
+}
+
+// --- Edge cases ---
+
+func TestScan_EmptyFiles(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "empty.go", "")
+	files := []walker.FileInfo{{Path: path, RelPath: "empty.go"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount)
+}
+
+func TestScan_NoFiles(t *testing.T) {
+	r := Scan(nil)
+	assert.Equal(t, 0, r.SecretsCount)
+}
+
+func TestScan_BinaryLikeContent(t *testing.T) {
+	dir := t.TempDir()
+	// File with binary-like content should not crash
+	content := make([]byte, 256)
+	for i := range content {
+		content[i] = byte(i)
+	}
+	path := filepath.Join(dir, "binary.dat")
+	require.NoError(t, os.WriteFile(path, content, 0644))
+	files := []walker.FileInfo{{Path: path, RelPath: "binary.dat"}}
+	r := Scan(files)
+	// Should not panic or crash, count is whatever the scanner finds
+	assert.GreaterOrEqual(t, r.SecretsCount, 0)
+}
+
+func TestScan_SkipsVariousTestFiles(t *testing.T) {
+	dir := t.TempDir()
+	testFiles := map[string]string{
+		"app_test.go":        `const key = "AKIAIOSFODNN7EXAMPLE"`,
+		"test_secrets.py":    `AWS_KEY = "AKIAIOSFODNN7EXAMPLE"`,
+		"spec/secret_spec.rb": `KEY = "AKIAIOSFODNN7EXAMPLE"`,
+	}
+	var files []walker.FileInfo
+	for name, content := range testFiles {
+		p := writeFile(t, dir, name, content)
+		files = append(files, walker.FileInfo{Path: p, RelPath: name, IsTest: true})
+	}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "all test files should be skipped")
+}

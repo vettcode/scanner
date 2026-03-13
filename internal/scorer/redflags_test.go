@@ -165,3 +165,76 @@ func TestEvaluateRedFlags_Multiple(t *testing.T) {
 	})
 	assert.Equal(t, 8, rf.Count) // all flags triggered
 }
+
+func TestEvaluateRedFlags_SecurityCombo(t *testing.T) {
+	// Secrets + CVEs should both trigger independently
+	rf := EvaluateRedFlags(RedFlagInput{
+		SecretsCount:       5,
+		CVECritical:        3,
+		EstTestCoveragePct: 50,
+		CICDDetected:       true,
+		HasReadme:          true,
+		HasGitHistory:      true,
+	})
+	assert.Equal(t, 2, rf.Count)
+	// Both should be critical
+	for _, f := range rf.Flags {
+		assert.Equal(t, models.SeverityCritical, f.Severity)
+	}
+}
+
+func TestEvaluateRedFlags_ProcessCombo(t *testing.T) {
+	// No tests + no CI/CD + no readme = process issues
+	rf := EvaluateRedFlags(RedFlagInput{
+		EstTestCoveragePct: 0,
+		CICDDetected:       false,
+		HasReadme:          false,
+		HasGitHistory:      true,
+	})
+	assert.Equal(t, 3, rf.Count)
+}
+
+func TestEvaluateRedFlags_ExactThresholds(t *testing.T) {
+	// DaysSinceLastCommit exactly 180 should NOT trigger stale
+	rf := EvaluateRedFlags(RedFlagInput{
+		DaysSinceLastCommit: 180,
+		EstTestCoveragePct:  50,
+		CICDDetected:        true,
+		HasReadme:           true,
+		HasGitHistory:       true,
+	})
+	assert.Equal(t, 0, rf.Count)
+
+	// DaysSinceLastCommit 181 SHOULD trigger stale
+	rf = EvaluateRedFlags(RedFlagInput{
+		DaysSinceLastCommit: 181,
+		EstTestCoveragePct:  50,
+		CICDDetected:        true,
+		HasReadme:           true,
+		HasGitHistory:       true,
+	})
+	assert.Equal(t, 1, rf.Count)
+	assert.Equal(t, models.RedFlagStaleRepo, rf.Flags[0].Flag)
+}
+
+func TestEvaluateRedFlags_UnmaintainedExactThreshold(t *testing.T) {
+	// 49% should NOT trigger (threshold is >= 50)
+	rf := EvaluateRedFlags(RedFlagInput{
+		UnmaintainedPct:    49,
+		EstTestCoveragePct: 50,
+		CICDDetected:       true,
+		HasReadme:          true,
+		HasGitHistory:      true,
+	})
+	assert.Equal(t, 0, rf.Count)
+
+	// 50% exactly SHOULD trigger (>= 50)
+	rf = EvaluateRedFlags(RedFlagInput{
+		UnmaintainedPct:    50,
+		EstTestCoveragePct: 50,
+		CICDDetected:       true,
+		HasReadme:          true,
+		HasGitHistory:      true,
+	})
+	assert.Equal(t, 1, rf.Count)
+}
