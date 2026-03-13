@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -46,6 +47,16 @@ func TestMultiLanguageScan_HealthySaas(t *testing.T) {
 		totalPct += pct
 	}
 	assert.InDelta(t, 100.0, totalPct, 0.1, "percentages should sum to ~100")
+
+	// Tier 2 files (YAML, Dockerfile) should appear in LOC but not in complexity
+	hasTier2Files := false
+	for _, f := range walkResult.Files {
+		if f.Tier == language.Tier2 {
+			hasTier2Files = true
+			break
+		}
+	}
+	assert.True(t, hasTier2Files, "healthy-saas should have some Tier 2 files (YAML, Docker, etc.)")
 
 	// Complexity: run on all Tier 1 files
 	var complexityResults []*complexity.FileResult
@@ -317,9 +328,9 @@ func TestSecurityNightmare_SecretsDetected(t *testing.T) {
 }
 
 // TestMultiRepoAggregation simulates scanning multiple fixture repos and
-// aggregating results.
+// aggregating results. Uses 3 fixtures per spec.
 func TestMultiRepoAggregation(t *testing.T) {
-	fixtures := []string{testdata.HealthySaas, testdata.JavaEnterprise}
+	fixtures := []string{testdata.HealthySaas, testdata.JavaEnterprise, testdata.NeglectedProject}
 	var repoMetrics []scorer.RepoMetrics
 
 	for _, name := range fixtures {
@@ -371,12 +382,17 @@ func TestMultiRepoAggregation(t *testing.T) {
 	agg := scorer.Aggregate(repoMetrics)
 	// Aggregated LOC should be sum of per-repo LOC
 	totalExpectedLOC := 0
+	maxComplexity := 0
 	for _, rm := range repoMetrics {
 		totalExpectedLOC += rm.LOC
+		if rm.MaxComplexity > maxComplexity {
+			maxComplexity = rm.MaxComplexity
+		}
 	}
 	assert.Equal(t, totalExpectedLOC, agg.TotalLOC, "aggregated LOC should be sum of repos")
 	assert.Greater(t, agg.AvgComplexity, 0.0, "aggregated complexity should be positive")
-	// Both fixtures have CI/CD
+	assert.Equal(t, maxComplexity, agg.MaxComplexity, "aggregated MaxComplexity should be global max")
+	// healthy-saas and java-enterprise have CI/CD (OR logic)
 	assert.True(t, agg.CICDDetected, "aggregated CI/CD should be true (OR logic)")
 }
 
@@ -472,6 +488,14 @@ func TestJSONOutputValidation(t *testing.T) {
 	assert.Contains(t, hotspot, "file_hash")
 	_, hasPath := hotspot["path"]
 	assert.False(t, hasPath, "path should not be in JSON (tagged json:\"-\")")
+
+	// Terminal output SHOULD show real file paths for hotspots
+	var termBuf bytes.Buffer
+	formatter := &output.TerminalFormatter{Color: &output.ColorConfig{Enabled: false}}
+	formatter.Format(&termBuf, result)
+	termOutput := termBuf.String()
+	assert.Contains(t, termOutput, "/real/path/file.go",
+		"terminal output should show real file paths")
 
 	// JSON round-trip: deserialize back into ScanResult and verify key fields
 	var roundTrip models.ScanResult
