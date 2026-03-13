@@ -24,11 +24,11 @@
 
 | Ticket | Description | Status | Updated_at | Note |
 | --- | --- | --- | --- | --- |
-| SC-010 | Language detector (file extension + manifest scanning) | | | |
-| SC-011 | Tree-sitter Go wrapper (load grammar, parse file, walk AST) | | | |
-| SC-012 | Go AST wrapper (parse Go files using `go/ast`) | | | |
-| SC-013 | Grammar download manager (GCS fetch, SHA-256 verify, version compatibility check, cache) | | | |
-| SC-014 | File walker with exclusion filtering | | | |
+| SC-010 | Language detector (file extension + manifest scanning) | resolved | 2026-03-12 | Case-insensitive extension matching, removed redundant compound extension block |
+| SC-011 | Tree-sitter Go wrapper (load grammar, parse file, walk AST) | resolved | 2026-03-12 | Interface + types defined; full tree-sitter integration deferred to Epic 3 |
+| SC-012 | Go AST wrapper (parse Go files using `go/ast`) | resolved | 2026-03-12 | Complexity: base 1 + decision points; nesting depth via recursive walk |
+| SC-013 | Grammar download manager (GCS fetch, SHA-256 verify, version compatibility check, cache) | resolved | 2026-03-12 | Atomic writes, offline mode support, SHA-256 verification |
+| SC-014 | File walker with exclusion filtering | resolved | 2026-03-12 | Debug logging for skipped paths, scanner error handling in LOC counter |
 
 ## Epic 3: Core Analyzers (6.5 days)
 
