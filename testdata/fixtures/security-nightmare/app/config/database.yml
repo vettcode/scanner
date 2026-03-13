@@ -1,0 +1,15 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: 5
+
+development:
+  <<: *default
+  database: nightmare_dev
+
+production:
+  <<: *default
+  database: nightmare_prod
+  username: prod_admin
+  # PLANTED SECRET: database password in config
+  password: db_pr0d_s3cret_p@ssw0rd!

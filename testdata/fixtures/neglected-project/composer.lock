@@ -1,0 +1,32 @@
+{
+    "_readme": ["This file locks the dependencies"],
+    "content-hash": "abc123",
+    "packages": [
+        {
+            "name": "laravel/framework",
+            "version": "v5.8.38",
+            "time": "2020-04-14T00:00:00+00:00"
+        },
+        {
+            "name": "guzzlehttp/guzzle",
+            "version": "6.3.3",
+            "time": "2019-01-20T00:00:00+00:00"
+        },
+        {
+            "name": "monolog/monolog",
+            "version": "1.24.0",
+            "time": "2019-02-01T00:00:00+00:00"
+        },
+        {
+            "name": "doctrine/dbal",
+            "version": "v2.9.3",
+            "time": "2019-11-02T00:00:00+00:00"
+        },
+        {
+            "name": "swiftmailer/swiftmailer",
+            "version": "v6.2.3",
+            "time": "2019-11-12T00:00:00+00:00"
+        }
+    ],
+    "packages-dev": []
+}

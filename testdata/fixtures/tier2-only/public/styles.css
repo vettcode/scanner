@@ -1,0 +1,68 @@
+/* Main stylesheet */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    color: #333;
+}
+
+header {
+    background: #2c3e50;
+    padding: 1rem 2rem;
+}
+
+nav a {
+    color: white;
+    text-decoration: none;
+    margin-right: 1.5rem;
+    font-weight: 500;
+}
+
+nav a:hover {
+    text-decoration: underline;
+}
+
+.hero {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.hero h1 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+.features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    padding: 3rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.feature {
+    padding: 2rem;
+    border: 1px solid #e1e1e1;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.feature h2 {
+    margin-bottom: 0.5rem;
+    color: #2c3e50;
+}
+
+footer {
+    text-align: center;
+    padding: 2rem;
+    background: #f5f5f5;
+    color: #666;
+}
