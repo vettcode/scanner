@@ -1,0 +1,36 @@
+# Homebrew formula template for VettCode Scanner.
+# GoReleaser auto-generates the actual formula in the vettcode/homebrew-tap repo.
+# This file is a reference template only.
+#
+# Installation: brew install vettcode/tap/vettcode
+# Upgrade:      brew upgrade vettcode
+
+class Vettcode < Formula
+  desc "Code health scanner for due diligence and M&A"
+  homepage "https://vettcode.com"
+  version "VERSION"
+  license "Proprietary"
+
+  on_macos do
+    if Hardware::CPU.arm?
+      url "https://github.com/vettcode/scanner/releases/download/vVERSION/vettcode_VERSION_darwin_arm64.tar.gz"
+      sha256 "SHA256_DARWIN_ARM64"
+    else
+      url "https://github.com/vettcode/scanner/releases/download/vVERSION/vettcode_VERSION_darwin_amd64.tar.gz"
+      sha256 "SHA256_DARWIN_AMD64"
+    end
+  end
+
+  on_linux do
+    url "https://github.com/vettcode/scanner/releases/download/vVERSION/vettcode_VERSION_linux_amd64.tar.gz"
+    sha256 "SHA256_LINUX_AMD64"
+  end
+
+  def install
+    bin.install "vettcode"
+  end
+
+  test do
+    system "#{bin}/vettcode", "version"
+  end
+end
