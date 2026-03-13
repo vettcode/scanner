@@ -28,32 +28,23 @@ func TestScanCommand_Help(t *testing.T) {
 	assert.Contains(t, output, "--verbose")
 	assert.Contains(t, output, "--no-git")
 	assert.Contains(t, output, "--timeout")
+
+	rootCmd.SetArgs(nil)
+	rootCmd.SetOut(nil)
+	rootCmd.SetErr(nil)
 }
 
 func TestScanCommand_DefaultFlags(t *testing.T) {
+	// Reset flags to defaults before checking
+	resetScanFlags()
+
 	f := scanCmd.Flags()
 
-	output, err := f.GetString("output")
-	require.NoError(t, err)
-	assert.Equal(t, "./vettcode-scan-result.json", output)
-
-	format, err := f.GetString("format")
-	require.NoError(t, err)
-	assert.Equal(t, "both", format)
-
-	offline, err := f.GetBool("offline")
-	require.NoError(t, err)
-	assert.False(t, offline)
-
-	quiet, err := f.GetBool("quiet")
-	require.NoError(t, err)
-	assert.False(t, quiet)
-
-	verbose, err := f.GetBool("verbose")
-	require.NoError(t, err)
-	assert.False(t, verbose)
-
-	noGit, err := f.GetBool("no-git")
-	require.NoError(t, err)
-	assert.False(t, noGit)
+	// Check DefValue (registered default) which is stable
+	assert.Equal(t, "./vettcode-scan-result.json", f.Lookup("output").DefValue)
+	assert.Equal(t, "both", f.Lookup("format").DefValue)
+	assert.Equal(t, "false", f.Lookup("offline").DefValue)
+	assert.Equal(t, "false", f.Lookup("quiet").DefValue)
+	assert.Equal(t, "false", f.Lookup("verbose").DefValue)
+	assert.Equal(t, "false", f.Lookup("no-git").DefValue)
 }

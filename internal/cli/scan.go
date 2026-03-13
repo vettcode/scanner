@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -58,8 +57,4 @@ func init() {
 	f.Duration("timeout", 30*time.Minute, "Maximum scan duration")
 }
 
-func runScan(cmd *cobra.Command, args []string) error {
-	// Placeholder — will be implemented in subsequent tickets
-	fmt.Fprintln(cmd.OutOrStdout(), "Scan not yet implemented. Use 'vettcode help scan' for usage.")
-	return nil
-}
+// runScan is defined in orchestrator.go
