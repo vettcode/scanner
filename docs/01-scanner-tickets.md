@@ -61,11 +61,11 @@
 
 | Ticket | Description | Status | Updated_at | Note |
 | --- | --- | --- | --- | --- |
-| SC-040 | Scorer implementation (metric-to-score functions) | resolved | 2026-03-12 | 6 category scorers: maintainability, security, handoff, dependency health, activity, infrastructure. Review fixes: added extreme-value and out-of-range tests |
-| SC-041 | Grade conversion and category score calculation | resolved | 2026-03-12 | Score-to-grade (A through F), weighted overall score with N/A renormalization. Review fix: OverallScore clamped to [0,100] |
-| SC-042 | Red flag evaluator (threshold checks, flag generation) | resolved | 2026-03-12 | 8 red flag types. Review fixes: float threshold (< 0.01) for test coverage, rounded month display |
-| SC-043 | Multi-repo result aggregator | resolved | 2026-03-12 | Review fixes: DocDensity worst-case aggregation, removed single-repo fast path, MedianAgeMonths rounding, negative days clamping, 12-bit ActiveMonths mask |
-| SC-044 | Pricing tier auto-determination | resolved | 2026-03-12 | Review fix: formatLOC guards against negative input |
+| SC-040 | Scorer implementation (metric-to-score functions) | merged | 2026-03-13 | 6 category scorers: maintainability, security, handoff, dependency health, activity, infrastructure. Review fixes: added extreme-value and out-of-range tests |
+| SC-041 | Grade conversion and category score calculation | merged | 2026-03-13 | Score-to-grade (A through F), weighted overall score with N/A renormalization. Review fix: OverallScore clamped to [0,100] |
+| SC-042 | Red flag evaluator (threshold checks, flag generation) | merged | 2026-03-13 | 8 red flag types. Review fixes: float threshold (< 0.01) for test coverage, rounded month display |
+| SC-043 | Multi-repo result aggregator | merged | 2026-03-13 | Review fixes: DocDensity worst-case aggregation, removed single-repo fast path, MedianAgeMonths rounding, negative days clamping, 12-bit ActiveMonths mask |
+| SC-044 | Pricing tier auto-determination | merged | 2026-03-13 | Review fix: formatLOC guards against negative input |
 
 ## Epic 5: Output Pipeline (1 day)
 
