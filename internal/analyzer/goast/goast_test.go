@@ -237,6 +237,64 @@ func TestSummarize(t *testing.T) {
 	assert.Equal(t, 1, s.HighComplexity)
 }
 
+func TestExtractTokens(t *testing.T) {
+	dir := t.TempDir()
+	path := writeGoFile(t, dir, "tok.go", `package main
+
+func add(x, y int) int {
+	return x + y
+}
+`)
+	tokens, err := ExtractTokens(path)
+	require.NoError(t, err)
+	assert.Greater(t, len(tokens), 0)
+
+	// Check normalization
+	hasID := false
+	hasLIT := false
+	for _, tok := range tokens {
+		if tok.Value == "$ID" {
+			hasID = true
+		}
+		// "package", "func", "int", "return" should appear as keywords via go/scanner
+		assert.NotEqual(t, "add", tok.Value, "identifiers should be normalized")
+		assert.NotEqual(t, "x", tok.Value)
+	}
+	_ = hasLIT
+	assert.True(t, hasID, "should have $ID tokens for identifiers")
+}
+
+func TestExtractTokens_Normalization(t *testing.T) {
+	dir := t.TempDir()
+	// Two Go files with renamed variables should produce identical token streams
+	src1 := `package main
+func process(data string) string {
+	result := transform(data)
+	return result
+}
+`
+	src2 := `package main
+func handle(input string) string {
+	output := convert(input)
+	return output
+}
+`
+	p1 := writeGoFile(t, dir, "a.go", src1)
+	p2 := writeGoFile(t, dir, "b.go", src2)
+
+	tok1, err := ExtractTokens(p1)
+	require.NoError(t, err)
+	tok2, err := ExtractTokens(p2)
+	require.NoError(t, err)
+
+	// Both should have same length and same normalized values
+	require.Equal(t, len(tok1), len(tok2), "renamed vars should produce same token count")
+	for i := range tok1 {
+		assert.Equal(t, tok1[i].Value, tok2[i].Value,
+			"token %d should match after normalization: %s vs %s", i, tok1[i].Value, tok2[i].Value)
+	}
+}
+
 func TestSummarize_Empty(t *testing.T) {
 	s := Summarize(nil)
 	assert.Equal(t, 0, s.TotalFunctions)

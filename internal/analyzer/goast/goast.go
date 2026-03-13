@@ -3,7 +3,9 @@ package goast
 import (
 	"go/ast"
 	"go/parser"
+	goscanner "go/scanner"
 	"go/token"
+	"os"
 )
 
 // FunctionInfo holds metadata about a Go function.
@@ -51,6 +53,53 @@ func Summarize(funcs []FunctionInfo) Summary {
 		s.AvgNesting = float64(totalNesting) / float64(s.TotalFunctions)
 	}
 	return s
+}
+
+// Token represents a normalized token for duplication detection.
+type Token struct {
+	Value string
+	Line  int // 1-based line number
+}
+
+// ExtractTokens tokenizes a Go source file into a normalized token stream.
+// Identifiers → "$ID", literals → "$LIT", keywords/operators → verbatim.
+func ExtractTokens(path string) ([]Token, error) {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	fset := token.NewFileSet()
+	file := fset.AddFile(path, -1, len(source))
+
+	var s goscanner.Scanner
+	s.Init(file, source, nil, 0) // mode 0 = skip comments
+
+	var tokens []Token
+	for {
+		pos, tok, _ := s.Scan()
+		if tok == token.EOF {
+			break
+		}
+		if tok == token.COMMENT {
+			continue
+		}
+
+		line := fset.Position(pos).Line
+		var value string
+		switch {
+		case tok == token.IDENT:
+			value = "$ID"
+		case tok == token.INT || tok == token.FLOAT || tok == token.IMAG ||
+			tok == token.CHAR || tok == token.STRING:
+			value = "$LIT"
+		default:
+			value = tok.String()
+		}
+		tokens = append(tokens, Token{Value: value, Line: line})
+	}
+
+	return tokens, nil
 }
 
 // ParseFile parses a Go source file and returns its AST.

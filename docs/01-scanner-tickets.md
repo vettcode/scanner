@@ -41,7 +41,7 @@
 | SC-022b | Cyclomatic complexity analyzer (Ruby via tree-sitter) | resolved | 2026-03-12 | Handles unless, until, rescue |
 | SC-022c | Cyclomatic complexity analyzer (Java via tree-sitter) | resolved | 2026-03-12 | Handles enhanced for, lambda |
 | SC-023 | Nesting depth analyzer (all languages) | resolved | 2026-03-12 | Integrated into complexity analyzers; avg_nesting via Summarize() |
-| SC-024 | Code duplication detector (token-based, cross-language) | waiting-for-input | 2026-03-12 | DEVIATION: Uses line-hash fingerprinting (6-line rolling window) instead of spec's token-based Rabin-Karp (50-token). Line-hash is functional but less resilient to variable renaming. Token-based requires reusing tree-sitter AST tokenization — significant effort. Fixed block merging for accurate block counts. |
+| SC-024 | Code duplication detector (token-based, cross-language) | resolved | 2026-03-12 | Token-based Rabin-Karp (50-token window) for Tier 1 languages via tree-sitter/go-scanner token extraction with normalization ($ID/$LIT). Line-hash (6-line window) fallback for Tier 2. Block merging + min 6-line filter. |
 | SC-025 | File size distribution calculator | resolved | 2026-03-12 | LOC buckets, % over 500 LOC |
 | SC-026 | Secrets detector (regex patterns + entropy) | resolved | 2026-03-12 | Fixed: entropy per-line independent, ByCategory populated, regex moved to pkg var, rune-correct entropy. ~25 patterns + Shannon entropy, allowlist filtering |
 | SC-027 | CVE lookup (OSV API + bundled snapshot) | waiting-for-input | 2026-03-12 | DEVIATION: Bundled OSV snapshot not implemented. Online mode works with proper error propagation + warnings. CVSS vector string parsing added. Offline mode tracks skipped ecosystems but has no local lookup. |

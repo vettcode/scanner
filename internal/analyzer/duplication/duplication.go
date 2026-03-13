@@ -10,107 +10,69 @@ import (
 	"github.com/vettcode/scanner/internal/walker"
 )
 
-// Result holds the duplication detection results.
-type Result struct {
-	DuplicationPct    float64
-	DuplicatedLOC     int
-	TotalLOC          int
-	DuplicateBlocks   int
+// Token represents a normalized token with its source line number.
+type Token struct {
+	Value string
+	Line  int // 1-based
 }
 
-// minBlockLines is the minimum number of lines for a duplicate block.
-const minBlockLines = 6
+// Result holds the duplication detection results.
+type Result struct {
+	DuplicationPct  float64
+	DuplicatedLOC   int
+	TotalLOC        int
+	DuplicateBlocks int
+}
 
-// windowSize is the number of lines in a rolling hash window.
-const windowSize = 6
+const (
+	tokenWindowSize = 50 // Rabin-Karp window for token-based detection
+	lineWindowSize  = 6  // rolling window for line-hash fallback
+	minBlockLines   = 6  // minimum lines for a duplicate block
+	hashBase        = 1000000007
+)
 
-// Analyze detects code duplication across files using line-hash fingerprinting.
-func Analyze(files []walker.FileInfo) *Result {
+// Analyze detects code duplication. Uses token-based Rabin-Karp for files with
+// token data (Tier 1 languages), falls back to line-hash for others (Tier 2).
+// Pass nil tokenStreams for pure line-hash mode.
+func Analyze(files []walker.FileInfo, tokenStreams ...map[string][]Token) *Result {
 	r := &Result{}
 
-	// Step 1: Build a hash-to-locations index using rolling line windows
-	type location struct {
-		fileIdx int
-		lineNum int
+	var ts map[string][]Token
+	if len(tokenStreams) > 0 {
+		ts = tokenStreams[0]
 	}
 
-	hashIndex := make(map[uint64][]location)
-	allLines := make([][]string, len(files))
+	// Separate files into token-based and line-based
+	tokenSet := make(map[string]bool)
+	if ts != nil {
+		for path := range ts {
+			tokenSet[path] = true
+		}
+	}
 
-	for i, f := range files {
+	var lineFiles []walker.FileInfo
+	var tokenFiles []tokFileEntry
+
+	for _, f := range files {
 		if f.IsTest {
-			continue // skip test files for duplication
-		}
-		lines := readNormalizedLines(f.Path)
-		allLines[i] = lines
-		r.TotalLOC += len(lines)
-
-		if len(lines) < windowSize {
 			continue
 		}
-
-		for j := 0; j <= len(lines)-windowSize; j++ {
-			h := hashWindow(lines[j : j+windowSize])
-			hashIndex[h] = append(hashIndex[h], location{fileIdx: i, lineNum: j})
+		r.TotalLOC += f.LOC
+		if tokens, ok := ts[f.Path]; ok && len(tokens) >= tokenWindowSize {
+			tokenFiles = append(tokenFiles, tokFileEntry{tokens: tokens, loc: f.LOC})
+		} else {
+			lineFiles = append(lineFiles, f)
 		}
 	}
 
-	// Step 2: Find hashes that appear 2+ times (potential duplicates)
-	duplicatedLines := make(map[int]map[int]bool) // fileIdx -> lineNums
+	// Token-based duplication (Tier 1)
+	tDupLOC, tBlocks := detectTokenDuplication(tokenFiles)
 
-	for _, locs := range hashIndex {
-		if len(locs) < 2 {
-			continue
-		}
+	// Line-based duplication (Tier 2 fallback)
+	lDupLOC, lBlocks := detectLineDuplication(lineFiles)
 
-		// Check that at least 2 locations are in different files or non-overlapping
-		hasDuplicate := false
-		for i := 0; i < len(locs) && !hasDuplicate; i++ {
-			for j := i + 1; j < len(locs); j++ {
-				if locs[i].fileIdx != locs[j].fileIdx ||
-					abs(locs[i].lineNum-locs[j].lineNum) >= windowSize {
-					hasDuplicate = true
-					break
-				}
-			}
-		}
-
-		if !hasDuplicate {
-			continue
-		}
-
-		// Mark all lines in this window as duplicated (except the first occurrence)
-		for idx := 1; idx < len(locs); idx++ {
-			loc := locs[idx]
-			if duplicatedLines[loc.fileIdx] == nil {
-				duplicatedLines[loc.fileIdx] = make(map[int]bool)
-			}
-			for k := loc.lineNum; k < loc.lineNum+windowSize; k++ {
-				duplicatedLines[loc.fileIdx][k] = true
-			}
-		}
-	}
-
-	// Step 3: Count duplicated LOC and merge adjacent lines into blocks
-	for _, lineSet := range duplicatedLines {
-		r.DuplicatedLOC += len(lineSet)
-
-		// Count contiguous blocks: sort line numbers and count runs
-		if len(lineSet) > 0 {
-			lines := make([]int, 0, len(lineSet))
-			for l := range lineSet {
-				lines = append(lines, l)
-			}
-			sortInts(lines)
-			blocks := 1
-			for i := 1; i < len(lines); i++ {
-				if lines[i] != lines[i-1]+1 {
-					blocks++
-				}
-			}
-			r.DuplicateBlocks += blocks
-		}
-	}
+	r.DuplicatedLOC = tDupLOC + lDupLOC
+	r.DuplicateBlocks = tBlocks + lBlocks
 
 	if r.TotalLOC > 0 {
 		r.DuplicationPct = float64(r.DuplicatedLOC) / float64(r.TotalLOC) * 100.0
@@ -119,7 +81,242 @@ func Analyze(files []walker.FileInfo) *Result {
 	return r
 }
 
-// readNormalizedLines reads a file and returns normalized lines (trimmed, no blanks).
+// --- Token-based Rabin-Karp duplication detection ---
+
+type tokFileEntry struct {
+	tokens []Token
+	loc    int
+}
+
+func detectTokenDuplication(files []tokFileEntry) (duplicatedLOC, blocks int) {
+	if len(files) == 0 {
+		return 0, 0
+	}
+
+	// Step 1: Map unique token strings to integer IDs
+	tokenIDs := make(map[string]uint64)
+	nextID := uint64(1)
+
+	type fileData struct {
+		ids   []uint64
+		lines []int
+	}
+	allFiles := make([]fileData, len(files))
+
+	for fi, f := range files {
+		fd := fileData{
+			ids:   make([]uint64, len(f.tokens)),
+			lines: make([]int, len(f.tokens)),
+		}
+		for i, t := range f.tokens {
+			id, ok := tokenIDs[t.Value]
+			if !ok {
+				id = nextID
+				tokenIDs[t.Value] = id
+				nextID++
+			}
+			fd.ids[i] = id
+			fd.lines[i] = t.Line
+		}
+		allFiles[fi] = fd
+	}
+
+	// Step 2: Rabin-Karp rolling hash over each file's token ID stream
+	type windowLoc struct {
+		fileIdx   int
+		tokenIdx  int
+		startLine int
+		endLine   int
+	}
+	hashIndex := make(map[uint64][]windowLoc)
+
+	// Precompute base^windowSize (uint64 overflow acts as mod 2^64)
+	basePow := uint64(1)
+	for i := 0; i < tokenWindowSize; i++ {
+		basePow *= hashBase
+	}
+
+	for fi, fd := range allFiles {
+		n := len(fd.ids)
+		if n < tokenWindowSize {
+			continue
+		}
+
+		// Initial hash: H = id[0]*B^(w-1) + id[1]*B^(w-2) + ... + id[w-1]
+		h := uint64(0)
+		for i := 0; i < tokenWindowSize; i++ {
+			h = h*hashBase + fd.ids[i]
+		}
+		hashIndex[h] = append(hashIndex[h], windowLoc{
+			fileIdx: fi, tokenIdx: 0,
+			startLine: fd.lines[0], endLine: fd.lines[tokenWindowSize-1],
+		})
+
+		// Roll: H' = H*B - id[old]*B^w + id[new]
+		for i := 1; i <= n-tokenWindowSize; i++ {
+			h = h*hashBase - fd.ids[i-1]*basePow + fd.ids[i+tokenWindowSize-1]
+			hashIndex[h] = append(hashIndex[h], windowLoc{
+				fileIdx: fi, tokenIdx: i,
+				startLine: fd.lines[i], endLine: fd.lines[i+tokenWindowSize-1],
+			})
+		}
+	}
+
+	// Step 3: Find duplicate windows (cross-file or non-overlapping in same file)
+	duplicatedLines := make(map[int]map[int]bool)
+
+	for _, locs := range hashIndex {
+		if len(locs) < 2 {
+			continue
+		}
+
+		// Need at least two non-overlapping locations
+		hasDup := false
+		for i := 0; i < len(locs) && !hasDup; i++ {
+			for j := i + 1; j < len(locs); j++ {
+				if locs[i].fileIdx != locs[j].fileIdx ||
+					abs(locs[i].tokenIdx-locs[j].tokenIdx) >= tokenWindowSize {
+					hasDup = true
+					break
+				}
+			}
+		}
+		if !hasDup {
+			continue
+		}
+
+		// Verify first pair matches (guard against hash collisions)
+		ref := locs[0]
+		fdRef := allFiles[ref.fileIdx]
+
+		var verified []windowLoc
+		verified = append(verified, ref)
+
+		for idx := 1; idx < len(locs); idx++ {
+			loc := locs[idx]
+			if loc.fileIdx == ref.fileIdx && abs(loc.tokenIdx-ref.tokenIdx) < tokenWindowSize {
+				continue // overlapping in same file
+			}
+			fdLoc := allFiles[loc.fileIdx]
+			match := true
+			for k := 0; k < tokenWindowSize; k++ {
+				if fdRef.ids[ref.tokenIdx+k] != fdLoc.ids[loc.tokenIdx+k] {
+					match = false
+					break
+				}
+			}
+			if match {
+				verified = append(verified, loc)
+			}
+		}
+
+		if len(verified) < 2 {
+			continue
+		}
+
+		// Mark ALL verified locations as duplicated (including first copy)
+		for _, loc := range verified {
+			if duplicatedLines[loc.fileIdx] == nil {
+				duplicatedLines[loc.fileIdx] = make(map[int]bool)
+			}
+			for line := loc.startLine; line <= loc.endLine; line++ {
+				duplicatedLines[loc.fileIdx][line] = true
+			}
+		}
+	}
+
+	// Step 4: Merge into contiguous blocks, filter blocks < minBlockLines
+	duplicatedLOC, blocks = countBlocksAndLOC(duplicatedLines)
+	return
+}
+
+// --- Line-hash duplication detection (Tier 2 fallback) ---
+
+func detectLineDuplication(files []walker.FileInfo) (duplicatedLOC, blocks int) {
+	if len(files) == 0 {
+		return 0, 0
+	}
+
+	type location struct {
+		fileIdx int
+		lineNum int
+	}
+	hashIndex := make(map[uint64][]location)
+
+	for i, f := range files {
+		lines := readNormalizedLines(f.Path)
+		if len(lines) < lineWindowSize {
+			continue
+		}
+		for j := 0; j <= len(lines)-lineWindowSize; j++ {
+			h := hashLineWindow(lines[j : j+lineWindowSize])
+			hashIndex[h] = append(hashIndex[h], location{fileIdx: i, lineNum: j})
+		}
+	}
+
+	duplicatedLines := make(map[int]map[int]bool)
+
+	for _, locs := range hashIndex {
+		if len(locs) < 2 {
+			continue
+		}
+
+		hasDup := false
+		for i := 0; i < len(locs) && !hasDup; i++ {
+			for j := i + 1; j < len(locs); j++ {
+				if locs[i].fileIdx != locs[j].fileIdx ||
+					abs(locs[i].lineNum-locs[j].lineNum) >= lineWindowSize {
+					hasDup = true
+					break
+				}
+			}
+		}
+		if !hasDup {
+			continue
+		}
+
+		// Mark ALL locations as duplicated
+		for _, loc := range locs {
+			if duplicatedLines[loc.fileIdx] == nil {
+				duplicatedLines[loc.fileIdx] = make(map[int]bool)
+			}
+			for k := loc.lineNum; k < loc.lineNum+lineWindowSize; k++ {
+				duplicatedLines[loc.fileIdx][k] = true
+			}
+		}
+	}
+
+	duplicatedLOC, blocks = countBlocksAndLOC(duplicatedLines)
+	return
+}
+
+// --- Shared helpers ---
+
+// countBlocksAndLOC merges duplicated lines into contiguous blocks,
+// filters blocks < minBlockLines, and returns total LOC and block count.
+func countBlocksAndLOC(duplicatedLines map[int]map[int]bool) (totalLOC, totalBlocks int) {
+	for _, lineSet := range duplicatedLines {
+		lines := make([]int, 0, len(lineSet))
+		for l := range lineSet {
+			lines = append(lines, l)
+		}
+		sort.Ints(lines)
+
+		blockStart := 0
+		for i := 1; i <= len(lines); i++ {
+			if i == len(lines) || lines[i] != lines[i-1]+1 {
+				blockLen := i - blockStart
+				if blockLen >= minBlockLines {
+					totalBlocks++
+					totalLOC += blockLen
+				}
+				blockStart = i
+			}
+		}
+	}
+	return
+}
+
 func readNormalizedLines(path string) []string {
 	f, err := os.Open(path)
 	if err != nil {
@@ -136,17 +333,14 @@ func readNormalizedLines(path string) []string {
 		if line == "" {
 			continue
 		}
-		// Normalize: lowercase, collapse whitespace
 		line = strings.Join(strings.Fields(line), " ")
 		lines = append(lines, line)
 	}
-	// Partial results returned even on scanner error (e.g., line too long)
 	_ = scanner.Err()
 	return lines
 }
 
-// hashWindow computes a hash of a window of lines.
-func hashWindow(lines []string) uint64 {
+func hashLineWindow(lines []string) uint64 {
 	h := fnv.New64a()
 	for _, line := range lines {
 		h.Write([]byte(line))
@@ -160,8 +354,4 @@ func abs(x int) int {
 		return -x
 	}
 	return x
-}
-
-func sortInts(a []int) {
-	sort.Ints(a)
 }

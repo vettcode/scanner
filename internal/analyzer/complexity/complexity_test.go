@@ -238,6 +238,30 @@ func TestSummarize(t *testing.T) {
 	assert.Equal(t, 1, s.HighComplexity) // only bar (15 > 10)
 }
 
+func TestAnalyzeFile_ExtractsTokens(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "tok.js", `
+function add(a, b) {
+  return a + b;
+}
+`)
+	result, err := AnalyzeFile(path, "JavaScript")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Greater(t, len(result.Tokens), 0, "should extract tokens from AST")
+
+	// Check normalization: identifiers become $ID, no raw variable names
+	hasID := false
+	for _, tok := range result.Tokens {
+		if tok.Value == "$ID" {
+			hasID = true
+		}
+		// Should not contain raw identifier names
+		assert.NotEqual(t, "add", tok.Value, "identifiers should be normalized to $ID")
+	}
+	assert.True(t, hasID, "should have normalized identifier tokens")
+}
+
 func TestSummarize_Empty(t *testing.T) {
 	s := Summarize(nil)
 	assert.Equal(t, 0, s.TotalFunctions)

@@ -22,11 +22,18 @@ type FunctionResult struct {
 	MaxNesting int
 }
 
+// Token represents a normalized token extracted from the AST.
+type Token struct {
+	Value string
+	Line  int // 1-based line number
+}
+
 // FileResult holds complexity analysis for a single file.
 type FileResult struct {
 	Path      string
 	Language  string
 	Functions []FunctionResult
+	Tokens    []Token // normalized token stream for duplication detection
 }
 
 // Summary holds aggregate complexity statistics across all analyzed files.
@@ -238,6 +245,7 @@ func AnalyzeFile(path, lang string) (*FileResult, error) {
 
 	root := tree.RootNode()
 	extractFunctions(root, source, cfg, result)
+	collectTokens(root, source, result)
 
 	return result, nil
 }
@@ -376,4 +384,66 @@ func findBodyNode(node *sitter.Node) *sitter.Node {
 	}
 	// For arrow functions/lambdas, the body might be the expression itself
 	return node
+}
+
+// --- Token extraction for duplication detection ---
+
+// identifierNodeTypes are tree-sitter node types representing identifiers.
+var identifierNodeTypes = map[string]bool{
+	"identifier": true, "property_identifier": true,
+	"shorthand_property_identifier": true, "shorthand_property_identifier_pattern": true,
+	"type_identifier": true, "name": true, "variable_name": true,
+	"constant": true,
+}
+
+// literalNodeTypes are tree-sitter node types representing literals.
+var literalNodeTypes = map[string]bool{
+	"number": true, "integer": true, "float": true,
+	"integer_literal": true, "float_literal": true,
+	"decimal_integer_literal": true, "decimal_floating_point_literal": true,
+	"hex_integer_literal": true, "octal_integer_literal": true,
+	"string": true, "string_literal": true, "string_content": true,
+	"string_fragment": true, "template_string": true,
+	"encapsed_string": true, "character_literal": true,
+	"true": true, "false": true, "null": true, "nil": true, "none": true,
+	"null_literal": true, "boolean": true, "regex": true, "regex_pattern": true,
+}
+
+// commentNodeTypes are tree-sitter node types to skip.
+var commentNodeTypes = map[string]bool{
+	"comment": true, "line_comment": true, "block_comment": true,
+}
+
+// collectTokens walks all leaf nodes of the AST to produce a normalized token stream.
+func collectTokens(node *sitter.Node, source []byte, result *FileResult) {
+	if node.ChildCount() == 0 {
+		tok := normalizeNode(node, source)
+		if tok != "" {
+			result.Tokens = append(result.Tokens, Token{
+				Value: tok,
+				Line:  int(node.StartPoint().Row) + 1,
+			})
+		}
+		return
+	}
+	for i := 0; i < int(node.ChildCount()); i++ {
+		collectTokens(node.Child(i), source, result)
+	}
+}
+
+// normalizeNode converts a leaf AST node to a normalized token string.
+// Identifiers → "$ID", literals → "$LIT", comments → "" (skip),
+// everything else (keywords, operators, punctuation) → verbatim content.
+func normalizeNode(node *sitter.Node, source []byte) string {
+	nodeType := node.Type()
+	if commentNodeTypes[nodeType] {
+		return ""
+	}
+	if identifierNodeTypes[nodeType] {
+		return "$ID"
+	}
+	if literalNodeTypes[nodeType] {
+		return "$LIT"
+	}
+	return node.Content(source)
 }
