@@ -1,0 +1,114 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go vet ./...
+
+builds:
+  - id: vettcode
+    main: ./cmd/vettcode
+    binary: vettcode
+    env:
+      - CGO_ENABLED=1
+    ldflags:
+      - -s -w
+      - -X github.com/vettcode/scanner/internal/cli.version={{.Version}}
+      - -X github.com/vettcode/scanner/internal/cli.commit={{.Commit}}
+      - -X github.com/vettcode/scanner/internal/cli.date={{.Date}}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: linux
+        goarch: arm64
+
+  # Windows build without CGO (tree-sitter grammars loaded at runtime)
+  - id: vettcode-windows
+    main: ./cmd/vettcode
+    binary: vettcode
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/vettcode/scanner/internal/cli.version={{.Version}}
+      - -X github.com/vettcode/scanner/internal/cli.commit={{.Commit}}
+      - -X github.com/vettcode/scanner/internal/cli.date={{.Date}}
+    goos:
+      - windows
+    goarch:
+      - amd64
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE*
+      - README*
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+release:
+  github:
+    owner: vettcode
+    name: scanner
+  draft: false
+  prerelease: auto
+  name_template: "v{{ .Version }}"
+
+brews:
+  - name: vettcode
+    repository:
+      owner: vettcode
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: "https://vettcode.com"
+    description: "Code health scanner for due diligence and M&A"
+    license: "Proprietary"
+    install: |
+      bin.install "vettcode"
+    test: |
+      system "#{bin}/vettcode", "version"
+
+dockers:
+  - image_templates:
+      - "docker.io/vettcode/scanner:v{{ .Version }}"
+      - "docker.io/vettcode/scanner:v{{ .Major }}.{{ .Minor }}"
+      - "docker.io/vettcode/scanner:v{{ .Major }}"
+      - "docker.io/vettcode/scanner:latest"
+      - "ghcr.io/vettcode/scanner:v{{ .Version }}"
+      - "ghcr.io/vettcode/scanner:v{{ .Major }}.{{ .Minor }}"
+      - "ghcr.io/vettcode/scanner:v{{ .Major }}"
+      - "ghcr.io/vettcode/scanner:latest"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--build-arg=VERSION={{ .Version }}"
+      - "--build-arg=COMMIT={{ .FullCommit }}"
+      - "--build-arg=DATE={{ .Date }}"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.source={{ .GitURL }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+    ids:
+      - vettcode
+    goos: linux
+    goarch: amd64
