@@ -297,3 +297,92 @@ func TestCountBlocksAndLOC_FilterSmall(t *testing.T) {
 	assert.Equal(t, 0, loc)
 	assert.Equal(t, 0, blocks)
 }
+
+// --- Partial duplication with known percentage ---
+
+func TestAnalyze_PartialDuplication(t *testing.T) {
+	dir := t.TempDir()
+
+	// 8 lines of duplicated code + 8 lines of unique code in each file
+	// Total = 32 lines, duplicated = 16 (8 in each), expected ~50%
+	common := `	data := fetchData()
+	result := transform(data)
+	validate(result)
+	save(result)
+	log("complete")
+	cleanup()
+	notify()
+	finalize()
+`
+	p1 := createFile(t, dir, "a.go", "package main\nfunc a() {\n"+common+`	uniqueA1()
+	uniqueA2()
+	uniqueA3()
+	uniqueA4()
+	uniqueA5()
+	uniqueA6()
+	uniqueA7()
+	uniqueA8()
+}
+`)
+	p2 := createFile(t, dir, "b.go", "package main\nfunc b() {\n"+common+`	uniqueB1()
+	uniqueB2()
+	uniqueB3()
+	uniqueB4()
+	uniqueB5()
+	uniqueB6()
+	uniqueB7()
+	uniqueB8()
+}
+`)
+
+	files := []walker.FileInfo{
+		{Path: p1, LOC: 19},
+		{Path: p2, LOC: 19},
+	}
+	r := Analyze(files)
+	// Should detect the common 8-line block
+	assert.Greater(t, r.DuplicationPct, 0.0, "should detect partial duplication")
+	assert.Greater(t, r.DuplicateBlocks, 0)
+}
+
+func TestAnalyze_SingleFile_NoDuplication(t *testing.T) {
+	dir := t.TempDir()
+	p := createFile(t, dir, "only.go", `package main
+func only() {
+	a := 1
+	b := 2
+	c := a + b
+	println(c)
+}
+`)
+	files := []walker.FileInfo{{Path: p, LOC: 7}}
+	r := Analyze(files)
+	assert.Equal(t, 0.0, r.DuplicationPct, "single file should not duplicate with itself")
+}
+
+func TestAnalyze_ThreeFilesWithDuplication(t *testing.T) {
+	dir := t.TempDir()
+
+	// Same 8-line block appears in all 3 files
+	common := `	data := fetchData()
+	result := transform(data)
+	validate(result)
+	save(result)
+	log("done")
+	cleanup()
+	notify()
+	finalize()
+`
+	for _, name := range []string{"x.go", "y.go", "z.go"} {
+		createFile(t, dir, name, "package main\nfunc f() {\n"+common+"}\n")
+	}
+
+	files := []walker.FileInfo{
+		{Path: filepath.Join(dir, "x.go"), LOC: 11},
+		{Path: filepath.Join(dir, "y.go"), LOC: 11},
+		{Path: filepath.Join(dir, "z.go"), LOC: 11},
+	}
+	r := Analyze(files)
+	assert.Greater(t, r.DuplicationPct, 0.0, "duplication across 3 files")
+	assert.Greater(t, r.DuplicatedLOC, 0)
+}

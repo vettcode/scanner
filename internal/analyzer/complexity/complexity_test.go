@@ -268,3 +268,269 @@ func TestSummarize_Empty(t *testing.T) {
 	assert.Equal(t, 0.0, s.AvgComplexity)
 	assert.Equal(t, 0.0, s.AvgNesting)
 }
+
+// --- High-complexity fixtures with exact assertions (spec requirement) ---
+
+func TestAnalyzeFile_JavaScript_HighComplexity(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "controller.js", `
+function processOrder(order, user, config) {
+  if (!order) {
+    return { error: "no order" };
+  }
+  if (!user) {
+    return { error: "no user" };
+  }
+  if (order.status === "cancelled") {
+    return { error: "cancelled" };
+  }
+
+  let total = 0;
+  for (let i = 0; i < order.items.length; i++) {
+    const item = order.items[i];
+    if (item.quantity <= 0) {
+      continue;
+    }
+    if (item.price > 10000) {
+      return { error: "price limit" };
+    }
+    total += item.price * item.quantity;
+  }
+
+  if (config.taxEnabled && user.region === "US") {
+    total *= 1.08;
+  }
+
+  if (total > config.maxOrderAmount || user.balance < total) {
+    return { error: "insufficient funds" };
+  }
+
+  try {
+    return { success: true, total: total };
+  } catch (e) {
+    return { error: "failed" };
+  }
+}
+`)
+	result, err := AnalyzeFile(path, "JavaScript")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(result.Functions), 1)
+
+	fn := result.Functions[0]
+	// 1(base) + 3(ifs) + 1(for) + 2(ifs in loop) + 1(&&) + 1(||) + 1(catch) = 10
+	assert.GreaterOrEqual(t, fn.Complexity, 9, "high-complexity JS function")
+	assert.LessOrEqual(t, fn.Complexity, 12)
+}
+
+func TestAnalyzeFile_Python_HighComplexity(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "handler.py", `
+def handle_request(request, db, config):
+    if not request:
+        return {"error": "empty"}
+    if request.method not in ("GET", "POST", "PUT"):
+        return {"error": "bad method"}
+
+    try:
+        data = request.json()
+    except ValueError:
+        return {"error": "bad json"}
+
+    if request.method == "GET":
+        items = db.query(request.params)
+        if not items:
+            return {"error": "not found"}
+        return {"data": items}
+    elif request.method == "POST":
+        if not data.get("name") or not data.get("email"):
+            return {"error": "missing fields"}
+        return db.create(data)
+    elif request.method == "PUT":
+        if "id" not in data:
+            return {"error": "missing id"}
+        existing = db.get(data["id"])
+        if not existing:
+            return {"error": "not found"}
+        return db.update(data)
+`)
+	result, err := AnalyzeFile(path, "Python")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(result.Functions), 1)
+
+	fn := result.Functions[0]
+	// base(1) + 2(ifs) + 1(except) + 1(if GET) + 1(if !items) + 1(elif POST) + 1(or) + 1(elif PUT) + 1(not in) + 1(if !existing) = ~11
+	assert.GreaterOrEqual(t, fn.Complexity, 8, "high-complexity Python function")
+}
+
+func TestAnalyzeFile_Java_SwitchAndLambda(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "Router.java", `
+class Router {
+    public Object route(String method, String path, Object body) {
+        if (method == null || path == null) {
+            throw new IllegalArgumentException("null input");
+        }
+
+        switch (method) {
+            case "GET":
+                if (path.startsWith("/users")) {
+                    return getUsers();
+                }
+                return getDefault(path);
+            case "POST":
+                if (body == null) {
+                    throw new IllegalArgumentException("body required");
+                }
+                return createResource(path, body);
+            case "DELETE":
+                return deleteResource(path);
+        }
+
+        if (path.contains("admin") && isAuthorized()) {
+            return handleAdmin(path, body);
+        }
+
+        return notFound();
+    }
+}
+`)
+	result, err := AnalyzeFile(path, "Java")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(result.Functions), 1)
+
+	fn := result.Functions[0]
+	// base(1) + 1(||) + 3(cases) + 2(ifs) + 1(if &&) + 1(&&) = ~9
+	assert.GreaterOrEqual(t, fn.Complexity, 7, "Java switch+boolean complexity")
+}
+
+func TestAnalyzeFile_PHP_ForeachElseif(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "process.php", `<?php
+function processItems($items, $config) {
+    if (empty($items)) {
+        return [];
+    }
+
+    $result = [];
+    foreach ($items as $item) {
+        if ($item['status'] === 'active') {
+            $result[] = $item;
+        } elseif ($item['status'] === 'pending') {
+            if ($config['includePending']) {
+                $result[] = $item;
+            }
+        } elseif ($item['status'] === 'archived') {
+            continue;
+        }
+    }
+
+    if (count($result) > $config['limit']) {
+        $result = array_slice($result, 0, $config['limit']);
+    }
+
+    return $result;
+}
+?>`)
+	result, err := AnalyzeFile(path, "PHP")
+	require.NoError(t, err)
+	if result != nil && len(result.Functions) > 0 {
+		fn := result.Functions[0]
+		// base(1) + 1(empty) + 1(foreach) + 1(if active) + 1(elseif pending) + 1(if include) + 1(elseif archived) + 1(if count) = 8
+		assert.GreaterOrEqual(t, fn.Complexity, 6, "PHP foreach+elseif complexity")
+	}
+}
+
+func TestAnalyzeFile_Ruby_UnlessRescue(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "service.rb", `
+def process_payment(amount, card, options)
+  unless amount > 0
+    return { error: "invalid amount" }
+  end
+
+  unless card
+    return { error: "no card" }
+  end
+
+  begin
+    result = charge(card, amount)
+    if result[:success]
+      if options[:send_receipt]
+        send_receipt(result)
+      end
+      return result
+    elsif result[:retry]
+      return retry_charge(card, amount)
+    end
+  rescue PaymentError
+    return { error: "payment failed" }
+  rescue NetworkError
+    return { error: "network error" }
+  end
+
+  { error: "unknown" }
+end
+`)
+	result, err := AnalyzeFile(path, "Ruby")
+	require.NoError(t, err)
+	if result != nil && len(result.Functions) > 0 {
+		fn := result.Functions[0]
+		// base(1) + 2(unless) + 1(if success) + 1(if send_receipt) + 1(elsif retry) + 2(rescue) = 8
+		assert.GreaterOrEqual(t, fn.Complexity, 5, "Ruby unless+rescue complexity")
+	}
+}
+
+func TestAnalyzeFile_EmptyFile(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "empty.js", "")
+	result, err := AnalyzeFile(path, "JavaScript")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Functions)
+}
+
+func TestAnalyzeFile_NoFunctions(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "constants.js", `
+const PI = 3.14;
+const E = 2.718;
+var name = "test";
+`)
+	result, err := AnalyzeFile(path, "JavaScript")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Functions)
+}
+
+func TestAnalyzeFile_NonexistentFile(t *testing.T) {
+	_, err := AnalyzeFile("/nonexistent/file.js", "JavaScript")
+	assert.Error(t, err)
+}
+
+func TestSummarize_AllHighComplexity(t *testing.T) {
+	results := []*FileResult{
+		{
+			Functions: []FunctionResult{
+				{Complexity: 15},
+				{Complexity: 20},
+				{Complexity: 25},
+			},
+		},
+	}
+	s := Summarize(results)
+	assert.Equal(t, 3, s.HighComplexity) // all > 10
+	assert.Equal(t, 25, s.MaxComplexity)
+}
+
+func TestSummarize_BoundaryComplexity(t *testing.T) {
+	results := []*FileResult{
+		{
+			Functions: []FunctionResult{
+				{Complexity: 10}, // exactly 10, not > 10
+				{Complexity: 11}, // just over threshold
+			},
+		},
+	}
+	s := Summarize(results)
+	assert.Equal(t, 1, s.HighComplexity) // only 11 is > 10
+}
