@@ -29,11 +29,11 @@
      Neither reviewer should assume the implementer's interpretation is correct — check the spec directly. Each reviewer returns a list of issues. For each issue:
     - **Clear fix:** Apply it. Mark the ticket as `reviewed`. Update `updated_at`.
     - **Debatable or unsure:** Document the disagreement in the ticket's `notes` field. Mark the ticket as `waiting-for-input`. Do not proceed on that ticket until I weigh in.
-  - After My Input
-  1. Apply the agreed-upon fixes.
-  2. Spin up a fresh review agent (no prior context) to review only the changed code, using the same two-lens criteria above.
-  3. If the fresh review surfaces new issues, follow the same triage: fix what's clear, escalate what's debatable.
-  4. Mark resolved tickets as `resolved`. Update `updated_at`.
+  - After My Input:
+    - Apply the agreed-upon fixes.
+    - Spin up a fresh review agent (no prior context) to review only the changed code, using the same two-lens criteria above.
+    - If the fresh review surfaces new issues, follow the same triage: fix what's clear, escalate what's debatable.
+    - Mark resolved tickets as `resolved`. Update `updated_at`.
 
 ### Merging
 

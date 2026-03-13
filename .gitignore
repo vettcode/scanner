@@ -1,1 +1,13 @@
 .DS_Store
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+vettcode-scan-result.json
+.vettcode/
+vendor/

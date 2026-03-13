@@ -12,50 +12,50 @@
 
 | Ticket | Description | Status | Updated_at | Note |
 | --- | --- | --- | --- | --- |
-| SC-001 | Project scaffolding: Go module, directory structure, CI setup | | | |
-| SC-002 | cobra CLI with `scan`, `version`, `help` commands | | | |
-| SC-003 | Config loading (flags, env vars) | | | |
-| SC-004 | Path validation and multi-path argument handling | | | |
-| SC-005 | Default exclusion patterns (hardcoded, no user-defined exclusions) | | | |
-| SC-006 | Logging infrastructure (leveled logging, `--verbose`) | | | |
-| SC-007 | Git version check (validate Git 2.20+ at scan start; warn + auto-fallback to `--no-git` if older or absent) | | | |
+| SC-001 | Project scaffolding: Go module, directory structure, CI setup | resolved | 2026-03-12 | |
+| SC-002 | cobra CLI with `scan`, `version`, `help` commands | resolved | 2026-03-12 | |
+| SC-003 | Config loading (flags, env vars) | resolved | 2026-03-12 | |
+| SC-004 | Path validation and multi-path argument handling | resolved | 2026-03-12 | Fixed non-deterministic label iteration, added output path validation |
+| SC-005 | Default exclusion patterns (hardcoded, no user-defined exclusions) | resolved | 2026-03-12 | |
+| SC-006 | Logging infrastructure (leveled logging, `--verbose`) | resolved | 2026-03-12 | |
+| SC-007 | Git version check (validate Git 2.20+ at scan start; warn + auto-fallback to `--no-git` if older or absent) | resolved | 2026-03-12 | |
 
 ## Epic 2: Language Detection & Parsing Infrastructure (1.5 days)
 
 | Ticket | Description | Status | Updated_at | Note |
 | --- | --- | --- | --- | --- |
-| SC-010 | Language detector (file extension + manifest scanning) | | | |
-| SC-011 | Tree-sitter Go wrapper (load grammar, parse file, walk AST) | | | |
-| SC-012 | Go AST wrapper (parse Go files using `go/ast`) | | | |
-| SC-013 | Grammar download manager (GCS fetch, SHA-256 verify, version compatibility check, cache) | | | |
-| SC-014 | File walker with exclusion filtering | | | |
+| SC-010 | Language detector (file extension + manifest scanning) | resolved | 2026-03-12 | Case-insensitive extension matching, removed redundant compound extension block |
+| SC-011 | Tree-sitter Go wrapper (load grammar, parse file, walk AST) | resolved | 2026-03-12 | Interface + types defined; full tree-sitter integration deferred to Epic 3 |
+| SC-012 | Go AST wrapper (parse Go files using `go/ast`) | resolved | 2026-03-12 | Complexity: base 1 + decision points; nesting depth via recursive walk |
+| SC-013 | Grammar download manager (GCS fetch, SHA-256 verify, version compatibility check, cache) | resolved | 2026-03-12 | Atomic writes, offline mode support, SHA-256 verification |
+| SC-014 | File walker with exclusion filtering | resolved | 2026-03-12 | Debug logging for skipped paths, scanner error handling in LOC counter |
 
 ## Epic 3: Core Analyzers (6.5 days)
 
 | Ticket | Description | Status | Updated_at | Note |
 | --- | --- | --- | --- | --- |
-| SC-020 | Cyclomatic complexity analyzer (JS/TS via tree-sitter) | | | |
-| SC-021 | Cyclomatic complexity analyzer (Python via tree-sitter) | | | |
-| SC-022 | Cyclomatic complexity analyzer (Go via go/ast) | | | |
-| SC-022a | Cyclomatic complexity analyzer (PHP via tree-sitter) | | | |
-| SC-022b | Cyclomatic complexity analyzer (Ruby via tree-sitter) | | | |
-| SC-022c | Cyclomatic complexity analyzer (Java via tree-sitter) | | | |
-| SC-023 | Nesting depth analyzer (all languages) | | | |
-| SC-024 | Code duplication detector (token-based, cross-language) | | | |
-| SC-025 | File size distribution calculator | | | |
-| SC-026 | Secrets detector (regex patterns + entropy) | | | |
-| SC-027 | CVE lookup (OSV API + bundled snapshot) | | | |
-| SC-028 | License detector (SPDX matching) | | | |
-| SC-029 | Outdated dependency detector (registry API queries) | | | |
-| SC-029a | Dependency parsing for PHP (composer.json/composer.lock) | | | |
-| SC-029b | Dependency parsing for Ruby (Gemfile/Gemfile.lock) | | | |
-| SC-029c | Dependency parsing for Java (pom.xml/build.gradle + lockfiles) | | | |
-| SC-030 | Dependency health analyzer (age, unmaintained %) | | | |
-| SC-031 | AI detection analyzer (import/dependency pattern matching) | | | |
-| SC-032 | Tech stack detector (frameworks, runtimes, databases, services) | | | |
-| SC-033 | Infrastructure detector (IaC, CI/CD, monitoring) | | | |
-| SC-034 | Git activity analyzer (log parsing, velocity, trend) | | | |
-| SC-035 | Handoff analyzer (tests, docs, env vars) | | | |
+| SC-020 | Cyclomatic complexity analyzer (JS/TS via tree-sitter) | merged | 2026-03-12 | Shared tree-sitter analyzer with per-language configs; added Summarize() for avg_nesting |
+| SC-021 | Cyclomatic complexity analyzer (Python via tree-sitter) | merged | 2026-03-12 | Handles elif, and/or operators |
+| SC-022 | Cyclomatic complexity analyzer (Go via go/ast) | merged | 2026-03-12 | Enhanced; added Summarize() for avg_nesting |
+| SC-022a | Cyclomatic complexity analyzer (PHP via tree-sitter) | merged | 2026-03-12 | Handles foreach, elseif |
+| SC-022b | Cyclomatic complexity analyzer (Ruby via tree-sitter) | merged | 2026-03-12 | Handles unless, until, rescue |
+| SC-022c | Cyclomatic complexity analyzer (Java via tree-sitter) | merged | 2026-03-12 | Handles enhanced for, lambda |
+| SC-023 | Nesting depth analyzer (all languages) | merged | 2026-03-12 | Integrated into complexity analyzers; avg_nesting via Summarize() |
+| SC-024 | Code duplication detector (token-based, cross-language) | merged | 2026-03-12 | Token-based Rabin-Karp (50-token window) for Tier 1 languages via tree-sitter/go-scanner token extraction with normalization ($ID/$LIT). Line-hash (6-line window) fallback for Tier 2. Block merging + min 6-line filter. |
+| SC-025 | File size distribution calculator | merged | 2026-03-12 | LOC buckets, % over 500 LOC |
+| SC-026 | Secrets detector (regex patterns + entropy) | merged | 2026-03-12 | Fixed: entropy per-line independent, ByCategory populated, regex moved to pkg var, rune-correct entropy. ~25 patterns + Shannon entropy, allowlist filtering |
+| SC-027 | CVE lookup (OSV API + bundled snapshot) | merged | 2026-03-12 | Bundled OSV snapshot: go:embed compressed index, version-range lookup (semver + pre-release + build metadata), npm/PyPI/Go ecosystems. Online fallback to snapshot on API failure with consolidated warning. 10s per-call timeout + 30s total network budget via context. Build tool (cmd/osv-snapshot) fetches from GCS with atomic writes. DEFERRED: OSV API caching (24h TTL), concurrent queries, batch API. |
+| SC-028 | License detector (SPDX matching) | merged | 2026-03-12 | GPL/AGPL/SSPL/CC problematic license detection |
+| SC-029 | Outdated dependency detector (registry API queries) | merged | 2026-03-12 | Deferred to online-mode integration |
+| SC-029a | Dependency parsing for PHP (composer.json/composer.lock) | merged | 2026-03-12 | Skips php/ext- requirements |
+| SC-029b | Dependency parsing for Ruby (Gemfile/Gemfile.lock) | merged | 2026-03-12 | Gemfile.lock spec parsing, Gemfile fallback |
+| SC-029c | Dependency parsing for Java (pom.xml/build.gradle + lockfiles) | merged | 2026-03-12 | Regex-based pom.xml and gradle parsing |
+| SC-030 | Dependency health analyzer (age, unmaintained %) | merged | 2026-03-12 | Median age, unmaintained %, oldest dep |
+| SC-031 | AI detection analyzer (import/dependency pattern matching) | merged | 2026-03-12 | LLM, VectorDB, RAG, MCP, fine-tuning, training, data pipeline |
+| SC-032 | Tech stack detector (frameworks, runtimes, databases, services) | merged | 2026-03-12 | 50+ frameworks, runtime version detection |
+| SC-033 | Infrastructure detector (IaC, CI/CD, monitoring) | merged | 2026-03-12 | Docker, Terraform, K8s, CI/CD, monitoring deps+configs |
+| SC-034 | Git activity analyzer (log parsing, velocity, trend) | merged | 2026-03-12 | Monthly commits, trend, contributors, HEAD SHA |
+| SC-035 | Handoff analyzer (tests, docs, env vars) | merged | 2026-03-12 | LOC-weighted test coverage, doc density, env var count |
 
 ## Epic 4: Scoring, Aggregation & Red Flags (1 day)
 
