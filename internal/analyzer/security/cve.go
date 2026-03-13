@@ -2,6 +2,7 @@ package security
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,11 @@ import (
 
 	"github.com/vettcode/scanner/internal/analyzer/deps"
 	"github.com/vettcode/scanner/internal/analyzer/security/snapshot"
+)
+
+const (
+	perCallTimeout     = 10 * time.Second // 10s per individual OSV API call
+	totalNetworkBudget = 30 * time.Second // 30s total across all CVE queries
 )
 
 // CVEResult holds the CVE lookup results.
@@ -91,8 +97,12 @@ var offlineEcosystems = map[string]bool{
 // In online mode, queries the OSV API with automatic fallback to the snapshot on timeout.
 func LookupCVEs(dependencies []deps.Dependency, offline bool) *CVEResult {
 	r := &CVEResult{}
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: perCallTimeout}
 	fellBackToSnapshot := false // tracks whether we've already emitted the fallback warning
+
+	// 30s total network budget across all CVE queries
+	budgetCtx, budgetCancel := context.WithTimeout(context.Background(), totalNetworkBudget)
+	defer budgetCancel()
 
 	// Log snapshot availability in offline mode
 	if offline && snapshot.Available() {
@@ -127,8 +137,26 @@ func LookupCVEs(dependencies []deps.Dependency, offline bool) *CVEResult {
 			continue
 		}
 
+		// Check if total network budget is exhausted
+		if budgetCtx.Err() != nil {
+			if snapshot.Available() && offlineEcosystems[dep.Ecosystem] {
+				lookupSnapshot(r, dep, osvEco)
+				if !fellBackToSnapshot {
+					fellBackToSnapshot = true
+					snapshotDate := snapshot.Date()
+					r.Warnings = append(r.Warnings,
+						fmt.Sprintf("CVE lookup timed out (30s budget). Using bundled OSV database (last updated: %s). CVE results may be up to 30 days old. To retry: run scan with network access.", snapshotDate))
+				}
+			} else {
+				r.Warnings = append(r.Warnings,
+					fmt.Sprintf("CVE lookup skipped for %s@%s (%s): network budget exhausted",
+						dep.Name, dep.Version, dep.Ecosystem))
+			}
+			continue
+		}
+
 		// Online mode: query OSV API with snapshot fallback on error
-		vulns, err := queryOSV(client, dep.Name, dep.Version, osvEco)
+		vulns, err := queryOSV(budgetCtx, client, dep.Name, dep.Version, osvEco)
 		if err != nil {
 			// Fall back to bundled snapshot if available
 			if snapshot.Available() && offlineEcosystems[dep.Ecosystem] {
@@ -182,7 +210,7 @@ type vulnInfo struct {
 	fixedVersion string
 }
 
-func queryOSV(client *http.Client, name, version, ecosystem string) ([]vulnInfo, error) {
+func queryOSV(ctx context.Context, client *http.Client, name, version, ecosystem string) ([]vulnInfo, error) {
 	q := osvQuery{Version: version}
 	q.Package.Name = name
 	q.Package.Ecosystem = ecosystem
@@ -192,7 +220,13 @@ func queryOSV(client *http.Client, name, version, ecosystem string) ([]vulnInfo,
 		return nil, fmt.Errorf("marshal query: %w", err)
 	}
 
-	resp, err := client.Post("https://api.osv.dev/v1/query", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.osv.dev/v1/query", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request: %w", err)
 	}
