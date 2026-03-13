@@ -80,6 +80,8 @@ type HotspotFile struct {
 	Complexity int    `json:"complexity"`
 	LOC        int    `json:"loc"`
 	Repo       string `json:"repo"`
+	// Path is the real file path, used only for terminal display (never serialized to JSON).
+	Path string `json:"-"`
 }
 
 // Security metrics.
