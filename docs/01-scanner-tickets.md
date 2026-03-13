@@ -71,12 +71,12 @@
 
 | Ticket | Description | Status | Updated_at | Note |
 | --- | --- | --- | --- | --- |
-| SC-050 | Terminal formatter (pretty-printer matching Section 8 format, includes scan duration display) | | | |
-| SC-051 | Color support with `--no-color` flag | | | |
-| SC-052 | JSON serializer (schema-compliant output) | | | |
-| SC-053 | Integrity signer (Ed25519 signing of metrics checksum) | | | |
-| SC-055 | Remote co-signing flow (POST /cosign/init, POST /cosign/complete, nonce embedding, offline fallback, error handling for co-sign API unavailability — see Section 5.8) | | | |
-| SC-054 | Progress indicator (spinner/progress bar during scan) | | | |
+| SC-050 | Terminal formatter (pretty-printer matching Section 8 format, includes scan duration display) | resolved | 2026-03-13 | All sections from 7.5 spec. Review fixes: hotspot shows real Path (json:"-"), External Services line in INFRASTRUCTURE, safe slice append |
+| SC-051 | Color support with `--no-color` flag | resolved | 2026-03-13 | ANSI color codes with ColorConfig.Enabled toggle, grade/severity coloring, no external deps |
+| SC-052 | JSON serializer (schema-compliant output) | resolved | 2026-03-13 | RFC 8785 canonical JSON, SetEscapeHTML(false), UseNumber() round-trip, 3 cross-language test vectors pass, atomic file write |
+| SC-053 | Integrity signer (Ed25519 signing of metrics checksum) | resolved | 2026-03-13 | Review fix: nonce included in hash (selective field exclusion, not whole integrity block). Ed25519 sign/verify, deterministic dev key |
+| SC-055 | Remote co-signing flow (POST /cosign/init, POST /cosign/complete, nonce embedding, offline fallback, error handling for co-sign API unavailability — see Section 5.8) | resolved | 2026-03-13 | Review fixes: validate init/complete response fields, honor Retry-After in completeWithRetry. Init/complete with retry (2x), backoff, fatal error classification |
+| SC-054 | Progress indicator (spinner/progress bar during scan) | resolved | 2026-03-13 | Review fix: sync.Once for safe double-Stop(). Braille spinner, phase + detail + elapsed time |
 
 ## Epic 6: Testing & Validation (2 days)
 
