@@ -12,13 +12,13 @@
 
 | Ticket | Description | Status | Updated_at | Note |
 | --- | --- | --- | --- | --- |
-| SC-001 | Project scaffolding: Go module, directory structure, CI setup | | | |
-| SC-002 | cobra CLI with `scan`, `version`, `help` commands | | | |
-| SC-003 | Config loading (flags, env vars) | | | |
-| SC-004 | Path validation and multi-path argument handling | | | |
-| SC-005 | Default exclusion patterns (hardcoded, no user-defined exclusions) | | | |
-| SC-006 | Logging infrastructure (leveled logging, `--verbose`) | | | |
-| SC-007 | Git version check (validate Git 2.20+ at scan start; warn + auto-fallback to `--no-git` if older or absent) | | | |
+| SC-001 | Project scaffolding: Go module, directory structure, CI setup | resolved | 2026-03-12 | |
+| SC-002 | cobra CLI with `scan`, `version`, `help` commands | resolved | 2026-03-12 | |
+| SC-003 | Config loading (flags, env vars) | resolved | 2026-03-12 | |
+| SC-004 | Path validation and multi-path argument handling | resolved | 2026-03-12 | Fixed non-deterministic label iteration, added output path validation |
+| SC-005 | Default exclusion patterns (hardcoded, no user-defined exclusions) | resolved | 2026-03-12 | |
+| SC-006 | Logging infrastructure (leveled logging, `--verbose`) | resolved | 2026-03-12 | |
+| SC-007 | Git version check (validate Git 2.20+ at scan start; warn + auto-fallback to `--no-git` if older or absent) | resolved | 2026-03-12 | |
 
 ## Epic 2: Language Detection & Parsing Infrastructure (1.5 days)
 
