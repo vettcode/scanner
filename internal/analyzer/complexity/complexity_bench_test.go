@@ -92,6 +92,56 @@ func generateJava(n int) string {
 	return b.String()
 }
 
+// generatePython generates n LOC of Python with moderate complexity.
+func generatePython(n int) string {
+	var b strings.Builder
+	funcs := n / 20
+	if funcs == 0 {
+		funcs = 1
+	}
+	for i := 0; i < funcs; i++ {
+		fmt.Fprintf(&b, "def fn%d(x, items):\n", i)
+		b.WriteString("    if x > 0:\n")
+		b.WriteString("        for item in items:\n")
+		b.WriteString("            if item > 0 and item < 100:\n")
+		b.WriteString("                print(item)\n")
+		for j := 0; j < 10; j++ {
+			fmt.Fprintf(&b, "                v%d = item + %d\n", j, j)
+		}
+		b.WriteString("    elif x < -10:\n")
+		b.WriteString("        return None\n")
+		b.WriteString("    return x\n\n")
+	}
+	return b.String()
+}
+
+// generateRuby generates n LOC of Ruby with moderate complexity.
+func generateRuby(n int) string {
+	var b strings.Builder
+	funcs := n / 20
+	if funcs == 0 {
+		funcs = 1
+	}
+	for i := 0; i < funcs; i++ {
+		fmt.Fprintf(&b, "def fn%d(x, items)\n", i)
+		b.WriteString("  if x > 0\n")
+		b.WriteString("    items.each do |item|\n")
+		b.WriteString("      if item > 0 && item < 100\n")
+		b.WriteString("        puts item\n")
+		for j := 0; j < 10; j++ {
+			fmt.Fprintf(&b, "        v%d = item + %d\n", j, j)
+		}
+		b.WriteString("      end\n")
+		b.WriteString("    end\n")
+		b.WriteString("  elsif x < -10\n")
+		b.WriteString("    return nil\n")
+		b.WriteString("  end\n")
+		b.WriteString("  x\n")
+		b.WriteString("end\n\n")
+	}
+	return b.String()
+}
+
 // benchComplexitySink prevents compiler optimization of discarded results.
 var benchComplexitySink *FileResult
 
@@ -146,7 +196,7 @@ func BenchmarkComplexityJava10K(b *testing.B) {
 func BenchmarkComplexity100K(b *testing.B) {
 	dir := b.TempDir()
 
-	// Generate ~100K LOC across 3 languages (JS, Java, PHP)
+	// Generate ~100K LOC across 5 tree-sitter languages (Go uses goast, excluded)
 	type langFile struct {
 		name    string
 		lang    string
@@ -156,6 +206,8 @@ func BenchmarkComplexity100K(b *testing.B) {
 		{"gen.js", "JavaScript", generateJS},
 		{"Gen.java", "Java", generateJava},
 		{"gen.php", "PHP", generatePHP},
+		{"gen.py", "Python", generatePython},
+		{"gen.rb", "Ruby", generateRuby},
 	}
 
 	var paths []struct {
@@ -163,9 +215,9 @@ func BenchmarkComplexity100K(b *testing.B) {
 		lang string
 	}
 	for _, lf := range langs {
-		// ~33K LOC per language
+		// ~20K LOC per language = ~100K total
 		path := filepath.Join(dir, lf.name)
-		require.NoError(b, os.WriteFile(path, []byte(lf.genFunc(33000)), 0644))
+		require.NoError(b, os.WriteFile(path, []byte(lf.genFunc(20000)), 0644))
 		paths = append(paths, struct {
 			path string
 			lang string

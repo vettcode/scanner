@@ -123,12 +123,11 @@ func TestAccuracy_Python_HealthySaas(t *testing.T) {
 	require.Greater(t, len(result.Functions), 0, "should find Python functions")
 
 	funcMap := buildFuncMap(t, result)
-	// Fixture annotations: create_user=5, get_user=2, update_user=4, list_users=3
-	// Python tree-sitter may count 'and'/'or'/comprehension as decision points
-	for name, c := range funcMap {
-		assert.Greater(t, c, 0, "function %s should have complexity >= 1", name)
-	}
-	// Check key functions exist
-	assert.Contains(t, funcMap, "create_user", "should find create_user")
-	assert.Contains(t, funcMap, "get_user", "should find get_user")
+	// Scanner values: tree-sitter counts 'or'/'and' as separate decision points
+	// create_user: base + 4 if + 2 or/not_in = 7; get_user: base + 1 if = 2
+	// update_user: base + 3 if + 2 and + 1 for = 7; list_users: base + 2 if = 3
+	assertComplexity(t, funcMap, "create_user", 7)
+	assertComplexity(t, funcMap, "get_user", 2)
+	assertComplexity(t, funcMap, "update_user", 7)
+	assertComplexity(t, funcMap, "list_users", 3)
 }
