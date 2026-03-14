@@ -299,6 +299,31 @@ func TestCLI_ScanFixtureSecurityNightmare(t *testing.T) {
 	assert.Contains(t, flagCodes, "secrets_detected", "security-nightmare should flag secrets")
 }
 
+// --- Grammar command tests ---
+
+func TestCLI_GrammarHelp(t *testing.T) {
+	output, err := execCLI(t, "grammar", "--help")
+	require.NoError(t, err)
+	assert.Contains(t, output, "tree-sitter grammars")
+	assert.Contains(t, output, "install")
+	assert.Contains(t, output, "list")
+	assert.Contains(t, output, "update")
+}
+
+func TestCLI_GrammarList(t *testing.T) {
+	output, err := execCLI(t, "grammar", "list")
+	require.NoError(t, err)
+	assert.Contains(t, output, "LANGUAGE")
+	assert.Contains(t, output, "javascript")
+	assert.Contains(t, output, "python")
+	assert.Contains(t, output, "Grammar version")
+}
+
+func TestCLI_GrammarInstallUnknown(t *testing.T) {
+	_, err := execCLI(t, "grammar", "install", "brainfuck")
+	assert.Error(t, err, "installing unknown language should fail")
+}
+
 // --- CI mode tests ---
 
 func TestCLI_CIModePass(t *testing.T) {

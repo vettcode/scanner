@@ -104,7 +104,7 @@
 
 | Ticket | Description | Status | Updated_at | Note |
 | --- | --- | --- | --- | --- |
-| SC-080 | Optional grammar management commands (`vettcode grammar list/install/update`) | | | |
+| SC-080 | Optional grammar management commands (`vettcode grammar list/install/update`) | reviewed | 2026-03-14 | `grammar list` (cache status), `grammar install [langs]` (download), `grammar update` (clear+redownload). Uses existing Manager. CacheDir() exposed. |
 | SC-081 | Windows compatibility testing and fixes | | | |
 | SC-082 | `--format terminal` (terminal only, no JSON) | merged | 2026-03-14 | Already implemented in orchestrator: format=terminal skips JSON write, format=json skips terminal output |
 | SC-083 | Duplication detection sampling for 300K+ LOC repos | reviewed | 2026-03-14 | Every Nth file sampling when LOC > 300K, N = totalLOC/300K. Percentage computed from sample, extrapolated to total. TotalLOC always reflects full file set. |

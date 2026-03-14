@@ -30,6 +30,7 @@ Guides & Help:
 func init() {
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(grammarCmd)
 }
 
 // Execute runs the root command.
