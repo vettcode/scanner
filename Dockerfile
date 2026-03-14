@@ -18,15 +18,19 @@ RUN CGO_ENABLED=1 go build \
       -X github.com/vettcode/scanner/internal/cli.date=${DATE}" \
     -o /vettcode ./cmd/vettcode
 
+# Pre-cache grammars during build so the image works fully offline (FR-2).
+# VETTCODE_HOME controls where grammars are cached.
+ENV VETTCODE_HOME=/vettcode-data
+RUN /vettcode grammar install || echo "WARN: grammar download failed; image will download on first scan"
+
 # Stage 2: Runtime
 FROM alpine:3.19
 
 RUN apk add --no-cache git ca-certificates
 
 COPY --from=builder /vettcode /usr/local/bin/vettcode
+COPY --from=builder /vettcode-data /usr/local/share/vettcode
 
-# TODO: Bundle V1 tree-sitter grammars into /usr/local/share/vettcode/grammars/
-# once grammar download infrastructure is finalized. Until then, grammars are
-# fetched at runtime (requires network access on first scan).
+ENV VETTCODE_HOME=/usr/local/share/vettcode
 
 ENTRYPOINT ["vettcode"]
