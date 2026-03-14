@@ -107,7 +107,7 @@
 | SC-080 | Optional grammar management commands (`vettcode grammar list/install/update`) | | | |
 | SC-081 | Windows compatibility testing and fixes | | | |
 | SC-082 | `--format terminal` (terminal only, no JSON) | merged | 2026-03-14 | Already implemented in orchestrator: format=terminal skips JSON write, format=json skips terminal output |
-| SC-083 | Duplication detection sampling for 300K+ LOC repos | | | |
+| SC-083 | Duplication detection sampling for 300K+ LOC repos | reviewed | 2026-03-14 | Every Nth file sampling when LOC > 300K, N = totalLOC/300K. Percentage computed from sample, extrapolated to total. TotalLOC always reflects full file set. |
 | SC-084 | Additional secret patterns (expand regex library) | reviewed | 2026-03-14 | Added 15 patterns: Anthropic, Mailchimp, Mailgun, Square, Shopify, Datadog, GitHub App, GitLab PAT, NuGet, Heroku, Firebase, JWT, OpenSSH, PGP, AMQP/SMTP connection strings. Total ~40 patterns. |
 | SC-085 | CI/CD integration mode (`--ci` flag with exit codes based on score thresholds) | reviewed | 2026-03-14 | --ci enables quality gate, --ci-threshold sets min grade (default C), --ci-fail-on sets red flag severity trigger (default critical). Exit 1 on failure. JSON always written. SilenceUsage on scan cmd. |
 

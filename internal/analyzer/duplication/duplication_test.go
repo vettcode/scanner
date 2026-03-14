@@ -386,3 +386,42 @@ func TestAnalyze_ThreeFilesWithDuplication(t *testing.T) {
 	assert.Greater(t, r.DuplicationPct, 0.0, "duplication across 3 files")
 	assert.Greater(t, r.DuplicatedLOC, 0)
 }
+
+// --- Sampling tests (SC-083) ---
+
+func TestAnalyze_SamplingKicksInAbove300K(t *testing.T) {
+	// Below threshold: no sampling (all files processed)
+	files := make([]walker.FileInfo, 10)
+	dir := t.TempDir()
+	for i := range files {
+		p := createFile(t, dir, filepath.Join("sub", "file"+string(rune('a'+i))+".go"),
+			"package main\nfunc f() {}\n")
+		files[i] = walker.FileInfo{Path: p, LOC: 29000} // 10 * 29K = 290K < 300K
+	}
+	r := Analyze(files)
+	assert.Equal(t, 290000, r.TotalLOC, "total LOC should reflect all files")
+
+	// Above threshold: sampling activates
+	filesLarge := make([]walker.FileInfo, 20)
+	dir2 := t.TempDir()
+	for i := range filesLarge {
+		p := createFile(t, dir2, filepath.Join("sub", "file"+string(rune('a'+i))+".go"),
+			"package main\nfunc f() {}\n")
+		filesLarge[i] = walker.FileInfo{Path: p, LOC: 20000} // 20 * 20K = 400K > 300K
+	}
+	r2 := Analyze(filesLarge)
+	assert.Equal(t, 400000, r2.TotalLOC, "total LOC should reflect all files even with sampling")
+}
+
+func TestAnalyze_SamplingPreservesTotalLOC(t *testing.T) {
+	// Sampling should not affect TotalLOC — it always reflects all files
+	dir := t.TempDir()
+	files := make([]walker.FileInfo, 100)
+	for i := range files {
+		p := createFile(t, dir, filepath.Join("d", string(rune(i/26+'a'))+string(rune(i%26+'a'))+".go"),
+			"package main\n")
+		files[i] = walker.FileInfo{Path: p, LOC: 5000} // 100 * 5K = 500K
+	}
+	r := Analyze(files)
+	assert.Equal(t, 500000, r.TotalLOC)
+}
