@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -676,7 +677,76 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// CI quality gate check (after output so JSON is always written)
+	if cfg.CI {
+		return checkCIGate(cmd, result, cfg)
+	}
+
 	return nil
+}
+
+// CIGateError is returned when the CI quality gate fails.
+// It implements error but signals to the CLI that output was already written
+// and only the exit code should change.
+type CIGateError struct {
+	Reasons []string
+}
+
+func (e *CIGateError) Error() string {
+	return fmt.Sprintf("CI quality gate failed: %s", strings.Join(e.Reasons, "; "))
+}
+
+// checkCIGate evaluates the scan result against CI thresholds.
+func checkCIGate(cmd *cobra.Command, result *models.ScanResult, cfg *config.Config) error {
+	var reasons []string
+
+	// Check overall grade threshold
+	threshold := models.Grade(cfg.CIThreshold)
+	if result.Summary.OverallGrade != nil {
+		if !scorer.GradeMeetsThreshold(*result.Summary.OverallGrade, threshold) {
+			reasons = append(reasons, fmt.Sprintf("overall grade %s is below threshold %s",
+				*result.Summary.OverallGrade, threshold))
+		}
+	} else {
+		reasons = append(reasons, fmt.Sprintf("no overall grade computed, threshold is %s", threshold))
+	}
+
+	// Check red flags at or above the configured severity
+	minSeverity := severityRank(models.Severity(cfg.CIFailOn))
+	for _, flag := range result.RedFlags.Flags {
+		if severityRank(flag.Severity) >= minSeverity {
+			reasons = append(reasons, fmt.Sprintf("red flag [%s] %s: %s",
+				flag.Severity, flag.Flag, flag.Detail))
+		}
+	}
+
+	if len(reasons) > 0 {
+		w := cmd.ErrOrStderr()
+		fmt.Fprintln(w, "\nCI Quality Gate: FAILED")
+		for _, r := range reasons {
+			fmt.Fprintf(w, "  - %s\n", r)
+		}
+		return &CIGateError{Reasons: reasons}
+	}
+
+	fmt.Fprintln(cmd.ErrOrStderr(), "\nCI Quality Gate: PASSED")
+	return nil
+}
+
+// severityRank returns a numeric rank for severity comparison (higher = more severe).
+func severityRank(s models.Severity) int {
+	switch s {
+	case models.SeverityCritical:
+		return 4
+	case models.SeverityHigh:
+		return 3
+	case models.SeverityMedium:
+		return 2
+	case models.SeverityLow:
+		return 1
+	default:
+		return 0
+	}
 }
 
 // generateUUID generates a UUID v4 using crypto/rand.
