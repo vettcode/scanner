@@ -106,7 +106,7 @@
 | --- | --- | --- | --- | --- |
 | SC-080 | Optional grammar management commands (`vettcode grammar list/install/update`) | | | |
 | SC-081 | Windows compatibility testing and fixes | | | |
-| SC-082 | `--format terminal` (terminal only, no JSON) | | | |
+| SC-082 | `--format terminal` (terminal only, no JSON) | merged | 2026-03-14 | Already implemented in orchestrator: format=terminal skips JSON write, format=json skips terminal output |
 | SC-083 | Duplication detection sampling for 300K+ LOC repos | | | |
 | SC-084 | Additional secret patterns (expand regex library) | | | |
 | SC-085 | CI/CD integration mode (`--ci` flag with exit codes based on score thresholds) | | | |

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"math"
 	"os"
+	"path/filepath"
 	"sort"
 	"time"
 
@@ -163,7 +164,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 
 		// Hotspot files (functions with complexity > 10)
-		repoHotspots := extractHotspots(complexityResults, repo.Name)
+		repoHotspots := extractHotspots(complexityResults, repo.Name, repo.Path)
 		allHotspots = append(allHotspots, repoHotspots...)
 
 		// Duplication detection
@@ -727,7 +728,7 @@ func monthBits(monthly [12]int) int {
 }
 
 // extractHotspots extracts files with max function complexity > 10.
-func extractHotspots(results []*complexity.FileResult, repoName string) []models.HotspotFile {
+func extractHotspots(results []*complexity.FileResult, repoName, repoPath string) []models.HotspotFile {
 	var hotspots []models.HotspotFile
 	for _, r := range results {
 		maxC := 0
@@ -737,12 +738,16 @@ func extractHotspots(results []*complexity.FileResult, repoName string) []models
 			}
 		}
 		if maxC > 10 {
+			relPath, err := filepath.Rel(repoPath, r.Path)
+			if err != nil {
+				relPath = r.Path // fallback to absolute if Rel fails
+			}
 			hotspots = append(hotspots, models.HotspotFile{
 				FileHash:   hashPath(r.Path),
 				Complexity: maxC,
 				LOC:        countFileLOC(r),
 				Repo:       repoName,
-				Path:       r.Path,
+				Path:       relPath,
 			})
 		}
 	}
