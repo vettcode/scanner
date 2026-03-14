@@ -75,6 +75,9 @@ func TestCLI_ScanHelp(t *testing.T) {
 	assert.Contains(t, output, "--verbose")
 	assert.Contains(t, output, "--no-git")
 	assert.Contains(t, output, "--timeout")
+	assert.Contains(t, output, "--ci")
+	assert.Contains(t, output, "--ci-threshold")
+	assert.Contains(t, output, "--ci-fail-on")
 }
 
 func TestCLI_VersionOutput(t *testing.T) {
@@ -294,6 +297,84 @@ func TestCLI_ScanFixtureSecurityNightmare(t *testing.T) {
 		flagCodes = append(flagCodes, flag["flag"].(string))
 	}
 	assert.Contains(t, flagCodes, "secrets_detected", "security-nightmare should flag secrets")
+}
+
+// --- Grammar command tests ---
+
+func TestCLI_GrammarHelp(t *testing.T) {
+	output, err := execCLI(t, "grammar", "--help")
+	require.NoError(t, err)
+	assert.Contains(t, output, "tree-sitter grammars")
+	assert.Contains(t, output, "install")
+	assert.Contains(t, output, "list")
+	assert.Contains(t, output, "update")
+}
+
+func TestCLI_GrammarList(t *testing.T) {
+	output, err := execCLI(t, "grammar", "list")
+	require.NoError(t, err)
+	assert.Contains(t, output, "LANGUAGE")
+	assert.Contains(t, output, "javascript")
+	assert.Contains(t, output, "python")
+	assert.Contains(t, output, "Grammar version")
+}
+
+func TestCLI_GrammarInstallUnknown(t *testing.T) {
+	_, err := execCLI(t, "grammar", "install", "brainfuck")
+	assert.Error(t, err, "installing unknown language should fail")
+}
+
+// --- CI mode tests ---
+
+func TestCLI_CIModePass(t *testing.T) {
+	fixture := testdata.FixturePath(testdata.HealthySaas)
+	tmpOut := filepath.Join(t.TempDir(), "scan.json")
+	out, err := execCLI(t, "scan", fixture, "--offline", "--ci", "--format", "json", "-q", "-o", tmpOut)
+	require.NoError(t, err, "CI mode should pass for healthy-saas with default threshold")
+	// JSON should still be written
+	_, statErr := os.Stat(tmpOut)
+	assert.NoError(t, statErr, "JSON output file should exist in CI mode")
+	_ = out
+}
+
+func TestCLI_CIModeFailGrade(t *testing.T) {
+	fixture := testdata.FixturePath(testdata.HealthySaas)
+	tmpOut := filepath.Join(t.TempDir(), "scan.json")
+	_, err := execCLI(t, "scan", fixture, "--offline", "--ci", "--ci-threshold", "A", "--format", "json", "-q", "-o", tmpOut)
+	require.Error(t, err, "CI mode should fail when threshold is A and grade is lower")
+	var ciErr *CIGateError
+	assert.ErrorAs(t, err, &ciErr, "error should be CIGateError")
+	assert.Contains(t, ciErr.Error(), "below threshold A")
+	// JSON should still be written even on CI failure
+	_, statErr := os.Stat(tmpOut)
+	assert.NoError(t, statErr, "JSON output should exist even when CI gate fails")
+}
+
+func TestCLI_CIModeFailRedFlags(t *testing.T) {
+	// Copy security-nightmare to temp dir (secrets scanner skips testdata/ paths)
+	fixture := testdata.FixturePath(testdata.SecurityNightmare)
+	tmpDir := t.TempDir()
+	scanDir := filepath.Join(tmpDir, "project")
+	copyDir(t, fixture, scanDir)
+
+	tmpOut := filepath.Join(t.TempDir(), "scan.json")
+	_, err := execCLI(t, "scan", scanDir, "--offline", "--ci", "--ci-threshold", "F", "--format", "json", "-q", "-o", tmpOut)
+	require.Error(t, err, "CI mode should fail on critical red flags even with F threshold")
+	var ciErr *CIGateError
+	assert.ErrorAs(t, err, &ciErr)
+	assert.Contains(t, ciErr.Error(), "secrets_detected")
+}
+
+func TestCLI_CIModeInvalidThreshold(t *testing.T) {
+	_, err := execCLI(t, "scan", ".", "--offline", "--ci", "--ci-threshold", "Z", "-q")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid --ci-threshold")
+}
+
+func TestCLI_CIModeInvalidFailOn(t *testing.T) {
+	_, err := execCLI(t, "scan", ".", "--offline", "--ci", "--ci-fail-on", "none", "-q")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid --ci-fail-on")
 }
 
 // copyDir recursively copies a directory tree.

@@ -362,6 +362,29 @@ func TestScoreToGrade_ExactBoundaries(t *testing.T) {
 	}
 }
 
+func TestGradeMeetsThreshold(t *testing.T) {
+	tests := []struct {
+		actual    models.Grade
+		threshold models.Grade
+		want      bool
+	}{
+		{models.GradeA, models.GradeA, true},   // exact match
+		{models.GradeA, models.GradeF, true},   // A >= F
+		{models.GradeF, models.GradeA, false},  // F < A
+		{models.GradeC, models.GradeC, true},   // exact match
+		{models.GradeBM, models.GradeC, true},  // B- >= C
+		{models.GradeCM, models.GradeC, false}, // C- < C
+		{models.GradeCP, models.GradeC, true},  // C+ >= C
+		{models.GradeDP, models.GradeC, false}, // D+ < C
+		{models.GradeF, models.GradeF, true},   // F >= F
+		{models.GradeAM, models.GradeA, false}, // A- < A
+	}
+	for _, tt := range tests {
+		got := GradeMeetsThreshold(tt.actual, tt.threshold)
+		assert.Equal(t, tt.want, got, "GradeMeetsThreshold(%s, %s) should be %v", tt.actual, tt.threshold, tt.want)
+	}
+}
+
 func TestScoreDependencyHealth_ExtremeOld(t *testing.T) {
 	score := ScoreDependencyHealth(DependencyHealthInput{
 		MedianAgeMonths: 120, // 10 years

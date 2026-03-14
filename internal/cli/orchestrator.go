@@ -9,7 +9,9 @@ import (
 	"log/slog"
 	"math"
 	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -163,7 +165,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 
 		// Hotspot files (functions with complexity > 10)
-		repoHotspots := extractHotspots(complexityResults, repo.Name)
+		repoHotspots := extractHotspots(complexityResults, repo.Name, repo.Path)
 		allHotspots = append(allHotspots, repoHotspots...)
 
 		// Duplication detection
@@ -675,7 +677,76 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// CI quality gate check (after output so JSON is always written)
+	if cfg.CI {
+		return checkCIGate(cmd, result, cfg)
+	}
+
 	return nil
+}
+
+// CIGateError is returned when the CI quality gate fails.
+// It implements error but signals to the CLI that output was already written
+// and only the exit code should change.
+type CIGateError struct {
+	Reasons []string
+}
+
+func (e *CIGateError) Error() string {
+	return fmt.Sprintf("CI quality gate failed: %s", strings.Join(e.Reasons, "; "))
+}
+
+// checkCIGate evaluates the scan result against CI thresholds.
+func checkCIGate(cmd *cobra.Command, result *models.ScanResult, cfg *config.Config) error {
+	var reasons []string
+
+	// Check overall grade threshold
+	threshold := models.Grade(cfg.CIThreshold)
+	if result.Summary.OverallGrade != nil {
+		if !scorer.GradeMeetsThreshold(*result.Summary.OverallGrade, threshold) {
+			reasons = append(reasons, fmt.Sprintf("overall grade %s is below threshold %s",
+				*result.Summary.OverallGrade, threshold))
+		}
+	} else {
+		reasons = append(reasons, fmt.Sprintf("no overall grade computed, threshold is %s", threshold))
+	}
+
+	// Check red flags at or above the configured severity
+	minSeverity := severityRank(models.Severity(cfg.CIFailOn))
+	for _, flag := range result.RedFlags.Flags {
+		if severityRank(flag.Severity) >= minSeverity {
+			reasons = append(reasons, fmt.Sprintf("red flag [%s] %s: %s",
+				flag.Severity, flag.Flag, flag.Detail))
+		}
+	}
+
+	if len(reasons) > 0 {
+		w := cmd.ErrOrStderr()
+		fmt.Fprintln(w, "\nCI Quality Gate: FAILED")
+		for _, r := range reasons {
+			fmt.Fprintf(w, "  - %s\n", r)
+		}
+		return &CIGateError{Reasons: reasons}
+	}
+
+	fmt.Fprintln(cmd.ErrOrStderr(), "\nCI Quality Gate: PASSED")
+	return nil
+}
+
+// severityRank returns a numeric rank for severity comparison (higher = more severe).
+func severityRank(s models.Severity) int {
+	switch s {
+	case models.SeverityCritical:
+		return 4
+	case models.SeverityHigh:
+		return 3
+	case models.SeverityMedium:
+		return 2
+	case models.SeverityLow:
+		return 1
+	default:
+		return 0
+	}
 }
 
 // generateUUID generates a UUID v4 using crypto/rand.
@@ -727,7 +798,7 @@ func monthBits(monthly [12]int) int {
 }
 
 // extractHotspots extracts files with max function complexity > 10.
-func extractHotspots(results []*complexity.FileResult, repoName string) []models.HotspotFile {
+func extractHotspots(results []*complexity.FileResult, repoName, repoPath string) []models.HotspotFile {
 	var hotspots []models.HotspotFile
 	for _, r := range results {
 		maxC := 0
@@ -737,12 +808,16 @@ func extractHotspots(results []*complexity.FileResult, repoName string) []models
 			}
 		}
 		if maxC > 10 {
+			relPath, err := filepath.Rel(repoPath, r.Path)
+			if err != nil {
+				relPath = r.Path // fallback to absolute if Rel fails
+			}
 			hotspots = append(hotspots, models.HotspotFile{
 				FileHash:   hashPath(r.Path),
 				Complexity: maxC,
 				LOC:        countFileLOC(r),
 				Repo:       repoName,
-				Path:       r.Path,
+				Path:       relPath,
 			})
 		}
 	}

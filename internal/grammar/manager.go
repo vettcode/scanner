@@ -57,6 +57,11 @@ func NewManager(vettcodeHome string, offline bool) *Manager {
 	}
 }
 
+// CacheDir returns the grammar cache directory path.
+func (m *Manager) CacheDir() string {
+	return m.cacheDir
+}
+
 // EnsureGrammar ensures a grammar is cached locally, downloading if needed.
 func (m *Manager) EnsureGrammar(lang string) (string, error) {
 	entry, ok := GrammarManifest[lang]

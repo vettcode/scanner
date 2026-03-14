@@ -25,15 +25,19 @@ type Result struct {
 }
 
 const (
-	tokenWindowSize = 50 // Rabin-Karp window for token-based detection
-	lineWindowSize  = 6  // rolling window for line-hash fallback
-	minBlockLines   = 6  // minimum lines for a duplicate block
-	hashBase        = 1000000007
+	tokenWindowSize    = 50     // Rabin-Karp window for token-based detection
+	lineWindowSize     = 6      // rolling window for line-hash fallback
+	minBlockLines      = 6      // minimum lines for a duplicate block
+	hashBase           = 1000000007
+	samplingThreshold  = 300000 // LOC threshold above which sampling kicks in
 )
 
 // Analyze detects code duplication. Uses token-based Rabin-Karp for files with
 // token data (Tier 1 languages), falls back to line-hash for others (Tier 2).
 // Pass nil tokenStreams for pure line-hash mode.
+//
+// For repos > 300K LOC, files are sampled (every Nth file) to bound memory
+// and runtime. The result is extrapolated to estimate total duplication.
 func Analyze(files []walker.FileInfo, tokenStreams ...map[string][]Token) *Result {
 	r := &Result{}
 
@@ -42,22 +46,36 @@ func Analyze(files []walker.FileInfo, tokenStreams ...map[string][]Token) *Resul
 		ts = tokenStreams[0]
 	}
 
-	// Separate files into token-based and line-based
-	tokenSet := make(map[string]bool)
-	if ts != nil {
-		for path := range ts {
-			tokenSet[path] = true
+	// Count total LOC (including all files, before sampling)
+	totalLOC := 0
+	var nonTestFiles []walker.FileInfo
+	for _, f := range files {
+		if f.IsTest {
+			continue
+		}
+		totalLOC += f.LOC
+		nonTestFiles = append(nonTestFiles, f)
+	}
+	r.TotalLOC = totalLOC
+
+	// Sampling: for repos > 300K LOC, take every Nth file
+	sampleStep := 1
+	if totalLOC > samplingThreshold && len(nonTestFiles) > 0 {
+		sampleStep = totalLOC / samplingThreshold
+		if sampleStep < 2 {
+			sampleStep = 2
 		}
 	}
 
 	var lineFiles []walker.FileInfo
 	var tokenFiles []tokFileEntry
+	sampledLOC := 0
 
-	for _, f := range files {
-		if f.IsTest {
+	for i, f := range nonTestFiles {
+		if sampleStep > 1 && i%sampleStep != 0 {
 			continue
 		}
-		r.TotalLOC += f.LOC
+		sampledLOC += f.LOC
 		if tokens, ok := ts[f.Path]; ok && len(tokens) >= tokenWindowSize {
 			tokenFiles = append(tokenFiles, tokFileEntry{tokens: tokens, loc: f.LOC})
 		} else {
@@ -71,11 +89,22 @@ func Analyze(files []walker.FileInfo, tokenStreams ...map[string][]Token) *Resul
 	// Line-based duplication (Tier 2 fallback)
 	lDupLOC, lBlocks := detectLineDuplication(lineFiles)
 
-	r.DuplicatedLOC = tDupLOC + lDupLOC
-	r.DuplicateBlocks = tBlocks + lBlocks
+	rawDupLOC := tDupLOC + lDupLOC
+	rawBlocks := tBlocks + lBlocks
 
-	if r.TotalLOC > 0 {
-		r.DuplicationPct = float64(r.DuplicatedLOC) / float64(r.TotalLOC) * 100.0
+	// If sampling was used, compute duplication percentage from the sample
+	// and apply it to total LOC for the extrapolated count.
+	if sampleStep > 1 && sampledLOC > 0 {
+		samplePct := float64(rawDupLOC) / float64(sampledLOC) * 100.0
+		r.DuplicationPct = samplePct
+		r.DuplicatedLOC = int(samplePct / 100.0 * float64(totalLOC))
+		r.DuplicateBlocks = rawBlocks * sampleStep // rough extrapolation
+	} else {
+		r.DuplicatedLOC = rawDupLOC
+		r.DuplicateBlocks = rawBlocks
+		if r.TotalLOC > 0 {
+			r.DuplicationPct = float64(r.DuplicatedLOC) / float64(r.TotalLOC) * 100.0
+		}
 	}
 
 	return r

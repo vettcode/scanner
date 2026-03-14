@@ -277,3 +277,69 @@ func TestScan_SkipsVariousTestFiles(t *testing.T) {
 	r := Scan(files)
 	assert.Equal(t, 0, r.SecretsCount, "all test files should be skipped")
 }
+
+// --- Tests for expanded secret patterns (SC-084) ---
+
+func TestScan_AnthropicKey(t *testing.T) {
+	dir := t.TempDir()
+	// Anthropic keys are ~93+ chars after sk-ant- prefix
+	key := "sk-ant-" + "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_abcdefghijklmnopqrstuvwxyz01234567"
+	path := writeFile(t, dir, "ai.py", `ANTHROPIC_KEY = "`+key+`"`)
+	files := []walker.FileInfo{{Path: path, RelPath: "ai.py"}}
+	r := Scan(files)
+	assert.GreaterOrEqual(t, r.SecretsCount, 1, "Anthropic API key should be detected")
+	assert.Contains(t, r.ByCategory, "api_key")
+}
+
+func TestScan_GitLabPAT(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "ci.sh", `export GITLAB_TOKEN="glpat-abcdefghij1234567890"`)
+	files := []walker.FileInfo{{Path: path, RelPath: "ci.sh"}}
+	r := Scan(files)
+	assert.GreaterOrEqual(t, r.SecretsCount, 1, "GitLab PAT should be detected")
+}
+
+func TestScan_JWTToken(t *testing.T) {
+	dir := t.TempDir()
+	// A syntactically valid JWT (header.payload.signature)
+	path := writeFile(t, dir, "auth.js", `const token = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijKLMN"`)
+	files := []walker.FileInfo{{Path: path, RelPath: "auth.js"}}
+	r := Scan(files)
+	assert.GreaterOrEqual(t, r.SecretsCount, 1, "JWT token should be detected")
+}
+
+func TestScan_OpenSSHKey(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "id_ed25519", `-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+-----END OPENSSH PRIVATE KEY-----`)
+	files := []walker.FileInfo{{Path: path, RelPath: "id_ed25519"}}
+	r := Scan(files)
+	assert.GreaterOrEqual(t, r.SecretsCount, 1, "OpenSSH private key should be detected")
+	assert.Contains(t, r.ByCategory, "private_key")
+}
+
+func TestScan_ShopifyToken(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "shop.rb", `SHOPIFY_TOKEN = "shpat_abcdef0123456789abcdef0123456789"`)
+	files := []walker.FileInfo{{Path: path, RelPath: "shop.rb"}}
+	r := Scan(files)
+	assert.GreaterOrEqual(t, r.SecretsCount, 1, "Shopify access token should be detected")
+}
+
+func TestScan_AMQPConnectionString(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "mq.py", `BROKER_URL = "amqp://user:password@rabbitmq.prod:5672/vhost"`)
+	files := []walker.FileInfo{{Path: path, RelPath: "mq.py"}}
+	r := Scan(files)
+	assert.GreaterOrEqual(t, r.SecretsCount, 1, "AMQP connection string should be detected")
+	assert.Contains(t, r.ByCategory, "connection_string")
+}
+
+func TestScan_GitHubAppToken(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "app.go", `var installToken = "ghs_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef12"`)
+	files := []walker.FileInfo{{Path: path, RelPath: "app.go"}}
+	r := Scan(files)
+	assert.GreaterOrEqual(t, r.SecretsCount, 1, "GitHub App token should be detected")
+}

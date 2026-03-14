@@ -39,27 +39,45 @@ var patterns = []SecretPattern{
 
 	// API Keys
 	{Name: "OpenAI API Key", Category: "api_key", Pattern: regexp.MustCompile(`sk-[A-Za-z0-9]{48}`)},
+	{Name: "Anthropic API Key", Category: "api_key", Pattern: regexp.MustCompile(`sk-ant-[A-Za-z0-9_-]{90,}`)},
 	{Name: "Stripe Secret Key", Category: "api_key", Pattern: regexp.MustCompile(`sk_live_[0-9a-zA-Z]{24,}`)},
 	{Name: "Stripe Publishable Key", Category: "api_key", Pattern: regexp.MustCompile(`pk_live_[0-9a-zA-Z]{24,}`)},
 	{Name: "SendGrid API Key", Category: "api_key", Pattern: regexp.MustCompile(`SG\.[0-9A-Za-z_-]{22}\.[0-9A-Za-z_-]{43}`)},
 	{Name: "Twilio Auth Token", Category: "api_key", Pattern: regexp.MustCompile(`(?i)twilio.*['\"][0-9a-f]{32}['\"]`)},
 	{Name: "Slack Token", Category: "api_key", Pattern: regexp.MustCompile(`xox[bpors]-[0-9a-zA-Z]{10,}`)},
 	{Name: "Slack Webhook", Category: "api_key", Pattern: regexp.MustCompile(`https://hooks\.slack\.com/services/T[0-9A-Z]{8,}/B[0-9A-Z]{8,}/[0-9a-zA-Z]{24}`)},
+	{Name: "Mailchimp API Key", Category: "api_key", Pattern: regexp.MustCompile(`[0-9a-f]{32}-us[0-9]{1,2}`)},
+	{Name: "Mailgun API Key", Category: "api_key", Pattern: regexp.MustCompile(`key-[0-9a-zA-Z]{32}`)},
+	{Name: "Square Access Token", Category: "api_key", Pattern: regexp.MustCompile(`sq0atp-[0-9A-Za-z_-]{22}`)},
+	{Name: "Square OAuth Secret", Category: "api_key", Pattern: regexp.MustCompile(`sq0csp-[0-9A-Za-z_-]{43}`)},
+	{Name: "Shopify Access Token", Category: "api_key", Pattern: regexp.MustCompile(`shpat_[0-9a-fA-F]{32}`)},
+	{Name: "Shopify Shared Secret", Category: "api_key", Pattern: regexp.MustCompile(`shpss_[0-9a-fA-F]{32}`)},
+	{Name: "Datadog API Key", Category: "api_key", Pattern: regexp.MustCompile(`(?i)dd[-_]?api[-_]?key\s*[=:]\s*["']?[0-9a-f]{32}`)},
 
 	// Tokens
 	{Name: "GitHub PAT", Category: "token", Pattern: regexp.MustCompile(`ghp_[0-9a-zA-Z]{36}`)},
 	{Name: "GitHub OAuth", Category: "token", Pattern: regexp.MustCompile(`gho_[0-9a-zA-Z]{36}`)},
+	{Name: "GitHub App Token", Category: "token", Pattern: regexp.MustCompile(`(ghu|ghs)_[0-9a-zA-Z]{36}`)},
+	{Name: "GitLab PAT", Category: "token", Pattern: regexp.MustCompile(`glpat-[0-9a-zA-Z_-]{20}`)},
 	{Name: "npm Token", Category: "token", Pattern: regexp.MustCompile(`npm_[0-9a-zA-Z]{36}`)},
 	{Name: "PyPI Token", Category: "token", Pattern: regexp.MustCompile(`pypi-[0-9a-zA-Z_-]{50,}`)},
+	{Name: "NuGet API Key", Category: "token", Pattern: regexp.MustCompile(`oy2[0-9a-z]{43}`)},
+	{Name: "Heroku API Key", Category: "token", Pattern: regexp.MustCompile(`(?i)heroku.*['\"][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}['\"]`)},
+	{Name: "Firebase Token", Category: "token", Pattern: regexp.MustCompile(`(?i)firebase\s*[=:]\s*["'][A-Za-z0-9_-]{30,}`)},
+	{Name: "JWT Token", Category: "token", Pattern: regexp.MustCompile(`eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}`)},
 
 	// Private Keys
 	{Name: "RSA Private Key", Category: "private_key", Pattern: regexp.MustCompile(`-----BEGIN RSA PRIVATE KEY-----`)},
 	{Name: "DSA Private Key", Category: "private_key", Pattern: regexp.MustCompile(`-----BEGIN DSA PRIVATE KEY-----`)},
 	{Name: "EC Private Key", Category: "private_key", Pattern: regexp.MustCompile(`-----BEGIN EC PRIVATE KEY-----`)},
 	{Name: "Private Key", Category: "private_key", Pattern: regexp.MustCompile(`-----BEGIN PRIVATE KEY-----`)},
+	{Name: "OpenSSH Private Key", Category: "private_key", Pattern: regexp.MustCompile(`-----BEGIN OPENSSH PRIVATE KEY-----`)},
+	{Name: "PGP Private Key", Category: "private_key", Pattern: regexp.MustCompile(`-----BEGIN PGP PRIVATE KEY BLOCK-----`)},
 
 	// Connection Strings
 	{Name: "Database URL", Category: "connection_string", Pattern: regexp.MustCompile(`(?i)(mysql|postgres|postgresql|mongodb|redis)://[^\s"']+:[^\s"']+@[^\s"']+`)},
+	{Name: "AMQP URL", Category: "connection_string", Pattern: regexp.MustCompile(`(?i)amqps?://[^\s"']+:[^\s"']+@[^\s"']+`)},
+	{Name: "SMTP Credentials", Category: "connection_string", Pattern: regexp.MustCompile(`(?i)smtp://[^\s"']+:[^\s"']+@[^\s"']+`)},
 
 	// Generic patterns
 	{Name: "Generic Secret", Category: "generic", Pattern: regexp.MustCompile(`(?i)(password|passwd|pwd|secret|api_key|apikey|api_secret|access_token|auth_token|private_key)\s*[=:]\s*["'][^"']{8,}["']`)},

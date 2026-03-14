@@ -32,6 +32,27 @@ func ScoreToGrade(score float64) models.Grade {
 	}
 }
 
+// gradeRank maps each grade to a numeric rank for comparison (higher = better).
+var gradeRank = map[models.Grade]int{
+	models.GradeA:  12,
+	models.GradeAM: 11,
+	models.GradeBP: 10,
+	models.GradeB:  9,
+	models.GradeBM: 8,
+	models.GradeCP: 7,
+	models.GradeC:  6,
+	models.GradeCM: 5,
+	models.GradeDP: 4,
+	models.GradeD:  3,
+	models.GradeDM: 2,
+	models.GradeF:  1,
+}
+
+// GradeMeetsThreshold returns true if actual grade is >= the threshold grade.
+func GradeMeetsThreshold(actual, threshold models.Grade) bool {
+	return gradeRank[actual] >= gradeRank[threshold]
+}
+
 // CategoryWeight defines the weight of each scoring category.
 type CategoryWeight struct {
 	Name   string
