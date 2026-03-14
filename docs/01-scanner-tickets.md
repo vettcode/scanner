@@ -12,23 +12,23 @@
 
 | Ticket | Description | Status | Updated_at | Note |
 | --- | --- | --- | --- | --- |
-| SC-001 | Project scaffolding: Go module, directory structure, CI setup | resolved | 2026-03-12 | |
-| SC-002 | cobra CLI with `scan`, `version`, `help` commands | resolved | 2026-03-12 | |
-| SC-003 | Config loading (flags, env vars) | resolved | 2026-03-12 | |
-| SC-004 | Path validation and multi-path argument handling | resolved | 2026-03-12 | Fixed non-deterministic label iteration, added output path validation |
-| SC-005 | Default exclusion patterns (hardcoded, no user-defined exclusions) | resolved | 2026-03-12 | |
-| SC-006 | Logging infrastructure (leveled logging, `--verbose`) | resolved | 2026-03-12 | |
-| SC-007 | Git version check (validate Git 2.20+ at scan start; warn + auto-fallback to `--no-git` if older or absent) | resolved | 2026-03-12 | |
+| SC-001 | Project scaffolding: Go module, directory structure, CI setup | merged | 2026-03-13 | |
+| SC-002 | cobra CLI with `scan`, `version`, `help` commands | merged | 2026-03-13 | |
+| SC-003 | Config loading (flags, env vars) | merged | 2026-03-13 | |
+| SC-004 | Path validation and multi-path argument handling | merged | 2026-03-13 | Fixed non-deterministic label iteration, added output path validation |
+| SC-005 | Default exclusion patterns (hardcoded, no user-defined exclusions) | merged | 2026-03-13 | |
+| SC-006 | Logging infrastructure (leveled logging, `--verbose`) | merged | 2026-03-13 | |
+| SC-007 | Git version check (validate Git 2.20+ at scan start; warn + auto-fallback to `--no-git` if older or absent) | merged | 2026-03-13 | |
 
 ## Epic 2: Language Detection & Parsing Infrastructure (1.5 days)
 
 | Ticket | Description | Status | Updated_at | Note |
 | --- | --- | --- | --- | --- |
-| SC-010 | Language detector (file extension + manifest scanning) | resolved | 2026-03-12 | Case-insensitive extension matching, removed redundant compound extension block |
-| SC-011 | Tree-sitter Go wrapper (load grammar, parse file, walk AST) | resolved | 2026-03-12 | Interface + types defined; full tree-sitter integration deferred to Epic 3 |
-| SC-012 | Go AST wrapper (parse Go files using `go/ast`) | resolved | 2026-03-12 | Complexity: base 1 + decision points; nesting depth via recursive walk |
-| SC-013 | Grammar download manager (GCS fetch, SHA-256 verify, version compatibility check, cache) | resolved | 2026-03-12 | Atomic writes, offline mode support, SHA-256 verification |
-| SC-014 | File walker with exclusion filtering | resolved | 2026-03-12 | Debug logging for skipped paths, scanner error handling in LOC counter |
+| SC-010 | Language detector (file extension + manifest scanning) | merged | 2026-03-13 | Case-insensitive extension matching, removed redundant compound extension block |
+| SC-011 | Tree-sitter Go wrapper (load grammar, parse file, walk AST) | merged | 2026-03-13 | Interface + types defined; full tree-sitter integration deferred to Epic 3 |
+| SC-012 | Go AST wrapper (parse Go files using `go/ast`) | merged | 2026-03-13 | Complexity: base 1 + decision points; nesting depth via recursive walk |
+| SC-013 | Grammar download manager (GCS fetch, SHA-256 verify, version compatibility check, cache) | merged | 2026-03-13 | Atomic writes, offline mode support, SHA-256 verification |
+| SC-014 | File walker with exclusion filtering | merged | 2026-03-13 | Debug logging for skipped paths, scanner error handling in LOC counter |
 
 ## Epic 3: Core Analyzers (6.5 days)
 
