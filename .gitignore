@@ -11,3 +11,5 @@ coverage.out
 vettcode-scan-result.json
 .vettcode/
 vendor/
+.claude/
+vettcode
