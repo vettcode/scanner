@@ -258,11 +258,12 @@ type Warning struct {
 
 // Integrity holds the scan signature and co-signing data.
 type Integrity struct {
-	ScanChecksum        string  `json:"scan_checksum"`
-	ScannerPublicKeyID  string  `json:"scanner_public_key_id"`
-	ScannerSignature    string  `json:"scanner_signature"`
-	CosignNonce         *string `json:"cosign_nonce"`
-	PlatformCosignature *string `json:"platform_cosignature"`
-	PlatformPublicKeyID *string `json:"platform_public_key_id"`
-	Cosigned            bool    `json:"cosigned"`
+	ScanChecksum        string            `json:"scan_checksum"`
+	ScannerPublicKeyID  string            `json:"scanner_public_key_id"`
+	ScannerSignature    string            `json:"scanner_signature"`
+	CosignNonce         *string           `json:"cosign_nonce"`
+	PlatformCosignature *string           `json:"platform_cosignature"`
+	PlatformPublicKeyID *string           `json:"platform_public_key_id"`
+	Cosigned            bool              `json:"cosigned"`
+	VerificationLevel   VerificationLevel `json:"verification_level"`
 }

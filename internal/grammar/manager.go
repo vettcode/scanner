@@ -47,6 +47,7 @@ type GrammarEntry struct {
 type Manager struct {
 	cacheDir string
 	offline  bool
+	baseURL  string
 }
 
 // NewManager creates a grammar manager.
@@ -54,7 +55,13 @@ func NewManager(vettcodeHome string, offline bool) *Manager {
 	return &Manager{
 		cacheDir: filepath.Join(vettcodeHome, "grammars", GrammarVersion),
 		offline:  offline,
+		baseURL:  GCSBaseURL,
 	}
+}
+
+// SetBaseURL overrides the grammar download base URL (used for testing).
+func (m *Manager) SetBaseURL(url string) {
+	m.baseURL = url
 }
 
 // CacheDir returns the grammar cache directory path.
@@ -108,7 +115,7 @@ func (m *Manager) GrammarPath(lang string) string {
 
 // download fetches a grammar from GCS and caches it.
 func (m *Manager) download(entry GrammarEntry) (string, error) {
-	url := fmt.Sprintf("%s/%s/%s", GCSBaseURL, GrammarVersion, entry.Filename)
+	url := fmt.Sprintf("%s/%s/%s", m.baseURL, GrammarVersion, entry.Filename)
 	slog.Info("downloading grammar", "language", entry.Language, "url", url)
 
 	fmt.Fprintf(os.Stderr, "Downloading %s grammar... ", entry.Language)

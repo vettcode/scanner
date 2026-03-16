@@ -160,3 +160,73 @@ func TestWalk_BlankOnlyFileSkipped(t *testing.T) {
 	assert.Equal(t, 1, result.TotalFiles)
 	assert.Equal(t, "real.go", filepath.Base(result.Files[0].Path))
 }
+
+func TestWalk_SymlinkNotFollowed(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a real source file
+	createTestFile(t, dir, "src/app.go", "package main\n\nfunc main() {}\n")
+
+	// Create a circular directory symlink: src/loop/parent -> dir
+	// If the walker followed symlinks, this would cause an infinite loop.
+	loopDir := filepath.Join(dir, "src", "loop")
+	require.NoError(t, os.MkdirAll(loopDir, 0755))
+	require.NoError(t, os.Symlink(dir, filepath.Join(loopDir, "parent")))
+
+	result, err := Walk(dir)
+	require.NoError(t, err)
+
+	// The walker must complete (no infinite loop) and the real file must be found.
+	// filepath.WalkDir does not follow directory symlinks, so the circular
+	// symlink "loop/parent -> dir" must not cause recursion.
+	assert.Equal(t, 1, result.TotalFiles, "only real files should be counted, circular symlink must not cause infinite recursion")
+	assert.Equal(t, "app.go", filepath.Base(result.Files[0].Path))
+}
+
+func TestWalk_ExcludesAllDefaultDirs(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a real source file at the root level
+	createTestFile(t, dir, "app.js", "const x = 1;\n")
+
+	// Create files inside each default-excluded directory
+	excludedDirs := []string{
+		"vendor",
+		".git",
+		"dist",
+		"build",
+		"__pycache__",
+		".venv",
+		"venv",
+		"out",
+		".next",
+		".nuxt",
+		"node_modules",
+	}
+
+	for _, excluded := range excludedDirs {
+		createTestFile(t, dir, filepath.Join(excluded, "hidden.js"), "const y = 2;\n")
+	}
+
+	result, err := Walk(dir)
+	require.NoError(t, err)
+
+	// Only app.js at the root should be found; all excluded dirs should be skipped
+	assert.Equal(t, 1, result.TotalFiles, "only the root app.js should be counted")
+	assert.Equal(t, "app.js", filepath.Base(result.Files[0].Path))
+}
+
+func TestWalk_DotfileConfigDetected(t *testing.T) {
+	dir := t.TempDir()
+
+	// .eslintrc.js is a dotfile config with a .js extension — it should be
+	// classified as JavaScript by the language detector
+	createTestFile(t, dir, ".eslintrc.js", "module.exports = { rules: {} };\n")
+
+	result, err := Walk(dir)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, result.TotalFiles)
+	assert.Equal(t, "JavaScript", result.Files[0].Language)
+	assert.False(t, result.Files[0].IsTest, ".eslintrc.js should not be classified as a test file")
+}

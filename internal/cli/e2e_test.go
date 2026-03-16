@@ -154,7 +154,10 @@ func TestCLI_ScanEmptyDir(t *testing.T) {
 	emptyDir := t.TempDir()
 	tmpOut := filepath.Join(t.TempDir(), "scan.json")
 	_, err := execCLI(t, "scan", emptyDir, "--offline", "--format", "json", "-q", "-o", tmpOut)
-	// Should succeed but produce a scan with 0 files
+	// TODO: The spec says `vettcode scan <empty-dir>` should exit code 1 with
+	// "no supported languages", but the current implementation exits 0 with 0 LOC.
+	// This test documents the current behavior; update when the implementation
+	// is changed to match the spec.
 	require.NoError(t, err)
 	data, err := os.ReadFile(tmpOut)
 	require.NoError(t, err)
@@ -233,6 +236,15 @@ func TestCLI_ScanFixtureHealthySaas(t *testing.T) {
 	assert.Contains(t, metrics, "maintainability")
 	assert.Contains(t, metrics, "security")
 
+	// Maintainability should get a decent score for healthy-saas (>= 60)
+	maint := metrics["maintainability"].(map[string]interface{})
+	if grade, ok := maint["grade"].(string); ok {
+		// Grade should be C or better (A, A-, B+, B, B-, C+, C)
+		decentGrades := map[string]bool{"A": true, "A-": true, "B+": true, "B": true, "B-": true, "C+": true, "C": true}
+		assert.True(t, decentGrades[grade],
+			"healthy-saas maintainability grade should be C or better, got %s", grade)
+	}
+
 	// Should have integrity block
 	integrity := result["integrity"].(map[string]interface{})
 	assert.NotEmpty(t, integrity["scan_checksum"])
@@ -254,6 +266,10 @@ func TestCLI_ScanFixtureNeglectedProject(t *testing.T) {
 	redFlags := result["red_flags"].(map[string]interface{})
 	flagCount := redFlags["count"].(float64)
 	assert.True(t, flagCount > 0, "neglected project should have red flags")
+
+	// Neglected project should have multiple red flags (at least 2: no_readme + others)
+	assert.True(t, flagCount >= 2,
+		"neglected project should have multiple red flags, got %v", flagCount)
 
 	// Should have no README red flag
 	flags := redFlags["flags"].([]interface{})
@@ -297,6 +313,50 @@ func TestCLI_ScanFixtureSecurityNightmare(t *testing.T) {
 		flagCodes = append(flagCodes, flag["flag"].(string))
 	}
 	assert.Contains(t, flagCodes, "secrets_detected", "security-nightmare should flag secrets")
+}
+
+func TestCLI_ScanFixtureTier2Only(t *testing.T) {
+	fixture := testdata.FixturePath(testdata.Tier2Only)
+	tmpOut := filepath.Join(t.TempDir(), "scan.json")
+	_, err := execCLI(t, "scan", fixture, "--offline", "--format", "json", "-q", "-o", tmpOut)
+	// Tier2-only has IaC files (Terraform, K8s, Docker) but no Tier 1 languages.
+	// Should still succeed (exit 0) because there are supported files.
+	require.NoError(t, err, "tier2-only fixture should succeed even without Tier 1 languages")
+
+	data, err := os.ReadFile(tmpOut)
+	require.NoError(t, err)
+	var result map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &result))
+
+	// Should have positive LOC from Tier 2 files
+	totalLOC := result["total_loc"].(float64)
+	assert.True(t, totalLOC > 0, "tier2-only should have positive LOC from IaC files")
+}
+
+func TestCLI_ScanFixtureJavaEnterprise(t *testing.T) {
+	fixture := testdata.FixturePath(testdata.JavaEnterprise)
+	tmpOut := filepath.Join(t.TempDir(), "scan.json")
+	_, err := execCLI(t, "scan", fixture, "--offline", "--format", "json", "-q", "-o", tmpOut)
+	require.NoError(t, err, "java-enterprise fixture should scan successfully")
+
+	data, err := os.ReadFile(tmpOut)
+	require.NoError(t, err)
+	var result map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &result))
+
+	// Verify multi-language detection (Java + Go)
+	repos := result["repositories"].([]interface{})
+	require.Len(t, repos, 1)
+	repo := repos[0].(map[string]interface{})
+	langs := repo["detected_languages"].([]interface{})
+	assert.True(t, len(langs) >= 2, "java-enterprise should detect multiple languages, got %v", langs)
+
+	// Verify Java is detected
+	var langNames []string
+	for _, l := range langs {
+		langNames = append(langNames, l.(string))
+	}
+	assert.Contains(t, langNames, "Java", "should detect Java")
 }
 
 // --- Grammar command tests ---
@@ -375,6 +435,14 @@ func TestCLI_CIModeInvalidFailOn(t *testing.T) {
 	_, err := execCLI(t, "scan", ".", "--offline", "--ci", "--ci-fail-on", "none", "-q")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid --ci-fail-on")
+}
+
+func TestCLI_ScanInvalidOutputPath(t *testing.T) {
+	fixture := testdata.FixturePath(testdata.HealthySaas)
+	_, err := execCLI(t, "scan", fixture, "--offline", "--format", "json", "-q", "-o", "/nonexistent/dir/scan.json")
+	assert.Error(t, err, "scan with invalid output path should return error")
+	assert.Contains(t, err.Error(), "output directory does not exist",
+		"error should mention that the output directory does not exist")
 }
 
 // copyDir recursively copies a directory tree.

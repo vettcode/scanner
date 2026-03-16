@@ -114,6 +114,7 @@ func (c *CosignClient) Cosign(ctx context.Context, result *models.ScanResult) (*
 	result.Integrity.PlatformCosignature = &completeResp.PlatformCosignature
 	result.Integrity.PlatformPublicKeyID = &completeResp.PlatformPublicKeyID
 	result.Integrity.Cosigned = true
+	result.Integrity.VerificationLevel = models.VerificationPlatformCosigned
 
 	return &CosignResult{Success: true}, nil
 }

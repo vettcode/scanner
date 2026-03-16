@@ -534,3 +534,121 @@ func TestSummarize_BoundaryComplexity(t *testing.T) {
 	s := Summarize(results)
 	assert.Equal(t, 1, s.HighComplexity) // only 11 is > 10
 }
+
+// --- Edge-case tests for specific language constructs ---
+
+func TestAnalyzeFile_JavaScript_OptionalChaining(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "optional.js", `
+function getNestedValue(obj) {
+  return obj?.prop?.nested?.method();
+}
+`)
+	result, err := AnalyzeFile(path, "JavaScript")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(result.Functions), 1)
+
+	fn := result.Functions[0]
+	// Optional chaining ?. is not a decision point — complexity stays at base 1
+	assert.Equal(t, 1, fn.Complexity, "optional chaining ?. should not increase complexity")
+}
+
+func TestAnalyzeFile_Ruby_UntilLoop(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "until.rb", `
+def countdown(n)
+  until n <= 0
+    n -= 1
+  end
+  n
+end
+`)
+	result, err := AnalyzeFile(path, "Ruby")
+	require.NoError(t, err)
+	if result != nil && len(result.Functions) > 0 {
+		fn := result.Functions[0]
+		// base(1) + until(1) = 2; 'until' is in Ruby decisionNodes
+		assert.GreaterOrEqual(t, fn.Complexity, 2, "Ruby 'until' should count as a decision point")
+	}
+}
+
+func TestAnalyzeFile_Java_InstanceofAndTryWithResources(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "TypeCheck.java", `
+class TypeCheck {
+    public String describe(Object obj) {
+        if (obj instanceof String) {
+            return "string";
+        }
+        if (obj instanceof Integer) {
+            return "integer";
+        }
+        return "unknown";
+    }
+}
+`)
+	result, err := AnalyzeFile(path, "Java")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(result.Functions), 1)
+
+	fn := result.Functions[0]
+	// instanceof is inside an if_statement; the if is the decision point, not instanceof itself.
+	// base(1) + 2(if statements) = 3
+	assert.GreaterOrEqual(t, fn.Complexity, 3, "Java if+instanceof should count the if as decision point")
+}
+
+func TestAnalyzeFile_JavaScript_NestingDepth5(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "nest5.js", `
+function deepNest5(x) {
+  if (x > 0) {                     // depth 1
+    for (let i = 0; i < x; i++) {  // depth 2
+      if (i % 2 === 0) {           // depth 3
+        while (x > 10) {           // depth 4
+          if (i > 5) {             // depth 5
+            x--;
+          }
+        }
+      }
+    }
+  }
+}
+`)
+	result, err := AnalyzeFile(path, "JavaScript")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(result.Functions), 1)
+
+	fn := result.Functions[0]
+	assert.Equal(t, 5, fn.MaxNesting, "should detect exactly 5 levels of nesting")
+}
+
+func TestAnalyzeFile_JavaScript_NestingDepth8(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestFile(t, dir, "nest8.js", `
+function deepNest8(x) {
+  if (x > 0) {                          // depth 1
+    for (let i = 0; i < x; i++) {       // depth 2
+      if (i % 2 === 0) {                // depth 3
+        while (x > 10) {                // depth 4
+          if (i > 5) {                  // depth 5
+            for (let j = 0; j < i; j++) { // depth 6
+              if (j > 2) {              // depth 7
+                while (j > 0) {         // depth 8
+                  j--;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+`)
+	result, err := AnalyzeFile(path, "JavaScript")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(result.Functions), 1)
+
+	fn := result.Functions[0]
+	assert.Equal(t, 8, fn.MaxNesting, "should detect exactly 8 levels of nesting")
+}

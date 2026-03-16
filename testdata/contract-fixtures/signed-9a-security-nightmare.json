@@ -1,0 +1,164 @@
+{
+  "version": "1.0",
+  "scan_id": "contract-test-security-nightmare",
+  "timestamp": "2026-03-16T19:42:49Z",
+  "scanner_version": "0.1.0-test",
+  "repositories": [
+    {
+      "name": "security-nightmare",
+      "path_hash": "e134ae1d96495cf9",
+      "languages": {
+        "Markdown": 5.88235294117647,
+        "Ruby": 79.41176470588235,
+        "YAML": 14.705882352941178
+      },
+      "file_count": 7,
+      "loc": 136,
+      "status": "analyzed",
+      "detected_languages": [
+        "Markdown",
+        "Ruby",
+        "YAML"
+      ]
+    }
+  ],
+  "total_loc": 136,
+  "total_file_count": 7,
+  "repo_count": 1,
+  "tech_stack": {
+    "frameworks": [
+      "Ruby on Rails"
+    ],
+    "runtimes": [],
+    "databases": [
+      "PostgreSQL"
+    ],
+    "external_services": [
+      "Stripe"
+    ]
+  },
+  "metrics": {
+    "maintainability": {
+      "grade": "A",
+      "cyclomatic_complexity": {
+        "avg": 3.3333333333333335,
+        "p90": 8,
+        "max": 13
+      },
+      "nesting_depth": {
+        "avg": 0.6666666666666666,
+        "max": 3
+      },
+      "duplication_pct": 0,
+      "hotspot_count": 1,
+      "hotspot_files": [
+        {
+          "file_hash": "e7c0bfcd32ee0bf5",
+          "complexity": 13,
+          "loc": 61,
+          "repo": "security-nightmare"
+        }
+      ],
+      "pct_files_over_500loc": 0
+    },
+    "security": {
+      "grade": "D",
+      "secrets_found": 1,
+      "cves": [],
+      "cve_summary": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "outdated_deps": {
+        "total": 0,
+        "outdated": 0,
+        "critical": 0,
+        "outdated_pct": 0
+      },
+      "license_issues": [],
+      "license_issue_count": 0,
+      "cve_ecosystems_skipped": [
+        "rubygems"
+      ]
+    },
+    "dependency_health": null,
+    "handoff_readiness": {
+      "grade": "F",
+      "est_test_coverage_pct": 9.558823529411764,
+      "doc_density": "medium",
+      "env_var_count": 0,
+      "has_readme": true,
+      "has_contributing_guide": false,
+      "has_env_template": false,
+      "has_setup_script": false
+    }
+  },
+  "activity": null,
+  "detection": {
+    "ai": {
+      "llm_api": false,
+      "vector_database": false,
+      "rag_pipeline": false,
+      "mcp_servers": false,
+      "fine_tuned_models": false,
+      "training_pipeline": false,
+      "proprietary_dataset": false
+    },
+    "infrastructure": {
+      "grade": "F",
+      "iac_detected": false,
+      "iac_types": [],
+      "ci_cd_detected": false,
+      "monitoring_detected": false,
+      "monitoring_tools": []
+    }
+  },
+  "red_flags": {
+    "count": 3,
+    "flags": [
+      {
+        "flag": "secrets_detected",
+        "detail": "1 hardcoded secrets found",
+        "severity": "critical"
+      },
+      {
+        "flag": "no_ci_cd",
+        "detail": "No CI/CD pipeline detected",
+        "severity": "medium"
+      },
+      {
+        "flag": "no_git_history",
+        "detail": "No git history detected (Development Activity: N/A)",
+        "severity": "high"
+      }
+    ]
+  },
+  "summary": {
+    "scored_categories": [
+      "maintainability",
+      "security",
+      "handoff_readiness",
+      "sre_infrastructure"
+    ],
+    "overall_grade": "D-",
+    "top_risks": [],
+    "top_strengths": []
+  },
+  "pricing_tier": {
+    "tier": "starter",
+    "reason": "136 LOC"
+  },
+  "warnings": [],
+  "integrity": {
+    "scan_checksum": "de9f4a7de53937ce60a8a867020b699ec51891f68c09e0897fe4fef5955bd356",
+    "scanner_public_key_id": "vettcode-scanner-key-2026-03",
+    "scanner_signature": "LGqnBa6ZfbiBtw+SW2yrHg18XeUdhNLFF/OEq3BGQSP9tvyPV+I/cDaWQtfnrrycFxfTVxGy4n1MLjLOE9iHBA==",
+    "cosign_nonce": null,
+    "platform_cosignature": null,
+    "platform_public_key_id": null,
+    "cosigned": false,
+    "verification_level": "self_reported"
+  }
+}

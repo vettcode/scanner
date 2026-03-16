@@ -3,6 +3,7 @@ package output
 import (
 	"crypto/ed25519"
 	"encoding/base64"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,6 +52,8 @@ func TestSignScanResult(t *testing.T) {
 	assert.False(t, result.Integrity.Cosigned)
 	assert.Nil(t, result.Integrity.CosignNonce)
 	assert.Nil(t, result.Integrity.PlatformCosignature)
+	assert.Equal(t, models.VerificationSelfReported, result.Integrity.VerificationLevel,
+		"signing should set verification_level to self_reported")
 }
 
 func TestSignScanResult_VerifyRoundTrip(t *testing.T) {
@@ -108,4 +111,19 @@ func TestSignScanResult_IntegrityExcluded(t *testing.T) {
 func TestGetPublicKey(t *testing.T) {
 	pk := GetPublicKey()
 	assert.Equal(t, ed25519.PublicKeySize, len(pk))
+}
+
+func TestScannerKeyID_MatchesExpectedFormat(t *testing.T) {
+	// Per shared-contracts.md: Key IDs follow "vettcode-{component}-key-YYYY-MM"
+	keyIDPattern := regexp.MustCompile(`^vettcode-scanner-key-\d{4}-\d{2}$`)
+	assert.Regexp(t, keyIDPattern, ScannerKeyID,
+		"ScannerKeyID should match ^vettcode-scanner-key-\\d{4}-\\d{2}$")
+}
+
+func TestSignScanResult_VerificationLevelSelfReported(t *testing.T) {
+	result := newTestScanResult()
+	require.NoError(t, SignScanResult(result))
+
+	assert.Equal(t, models.VerificationSelfReported, result.Integrity.VerificationLevel,
+		"after signing, verification_level must be self_reported")
 }

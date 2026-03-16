@@ -396,6 +396,39 @@ func TestMultiRepoAggregation(t *testing.T) {
 	assert.True(t, agg.CICDDetected, "aggregated CI/CD should be true (OR logic)")
 }
 
+// TestAllTier1Languages walks all 4 Tier 1 fixtures and verifies that all
+// 6 Tier 1 languages are detected across them:
+//   - healthy-saas: JavaScript, Python (+ TypeScript detected as JavaScript)
+//   - java-enterprise: Java, Go
+//   - neglected-project: PHP
+//   - security-nightmare: Ruby
+func TestAllTier1Languages(t *testing.T) {
+	tier1Fixtures := []string{
+		testdata.HealthySaas,
+		testdata.JavaEnterprise,
+		testdata.NeglectedProject,
+		testdata.SecurityNightmare,
+	}
+
+	allLanguages := make(map[string]bool)
+	for _, name := range tier1Fixtures {
+		root := testdata.FixturePath(name)
+		walkResult, err := walker.Walk(root)
+		require.NoError(t, err, "walking fixture %s", name)
+
+		langResult := language.AggregateResults(walkResult.LanguageLOC)
+		for _, lang := range langResult.DetectedLanguages {
+			allLanguages[lang] = true
+		}
+	}
+
+	// All 6 Tier 1 languages should be present across the 4 fixtures
+	expectedTier1 := []string{"JavaScript", "Python", "Java", "Go", "PHP", "Ruby"}
+	for _, lang := range expectedTier1 {
+		assert.True(t, allLanguages[lang], "Tier 1 language %q should be detected across all fixtures, got: %v", lang, allLanguages)
+	}
+}
+
 // TestJSONOutputValidation builds a ScanResult, writes it, reads it back,
 // and validates required fields are present and no raw paths leak.
 func TestJSONOutputValidation(t *testing.T) {
@@ -412,6 +445,7 @@ func TestJSONOutputValidation(t *testing.T) {
 			{
 				Name:              "test-repo",
 				PathHash:          "abc123",
+				HeadCommitSHA:     "deadbeef1234567890abcdef1234567890abcdef",
 				Languages:         map[string]float64{"Go": 80.0, "JavaScript": 20.0},
 				FileCount:         50,
 				LOC:               5000,
@@ -422,6 +456,12 @@ func TestJSONOutputValidation(t *testing.T) {
 		TotalLOC:       5000,
 		TotalFileCount: 50,
 		RepoCount:      1,
+		TechStack: models.TechStack{
+			Frameworks:       []string{"gin"},
+			Runtimes:         []string{"go1.21"},
+			Databases:        []string{"postgres"},
+			ExternalServices: []string{"stripe"},
+		},
 		Metrics: models.Metrics{
 			Maintainability: &models.Maintainability{
 				Grade:              &gradeA,
@@ -435,6 +475,38 @@ func TestJSONOutputValidation(t *testing.T) {
 				PctFilesOver500LOC: 5.0,
 			},
 		},
+		Activity: &models.Activity{
+			Grade:               &gradeA,
+			LastCommitDate:      "2026-03-10",
+			DaysSinceLastCommit: 3,
+			CommitVelocity: models.CommitVelocity{
+				AvgPerMonth:  12.5,
+				Trend:        models.TrendStable,
+				Last12Months: []int{10, 12, 11, 13, 14, 12, 11, 13, 12, 14, 13, 15},
+			},
+			ActiveMonths:     12,
+			TotalMonths:      12,
+			ContributorCount: 5,
+		},
+		Detection: models.Detection{
+			AI: models.AIDetection{
+				LLMAPI:      true,
+				LLMProvider: "openai",
+			},
+			Infrastructure: models.InfrastructureDetection{
+				Grade:       &gradeA,
+				IaCDetected: true,
+				IaCTypes:    []string{"terraform"},
+				CICDDetected: true,
+				CICDProvider: "github-actions",
+			},
+		},
+		RedFlags: models.RedFlags{
+			Count: 1,
+			Flags: []models.RedFlag{
+				{Flag: models.RedFlagStaleRepo, Detail: "test flag", Severity: models.SeverityMedium},
+			},
+		},
 		Summary: models.Summary{
 			ScoredCategories: []string{"maintainability", "security"},
 			OverallGrade:     &gradeA,
@@ -442,6 +514,9 @@ func TestJSONOutputValidation(t *testing.T) {
 		PricingTier: models.PricingTier{
 			Tier:   models.PricingTierStandard,
 			Reason: "5000 LOC",
+		},
+		Warnings: []models.Warning{
+			{Code: "partial_analysis", Message: "CVE lookup skipped for npm"},
 		},
 	}
 
@@ -465,10 +540,64 @@ func TestJSONOutputValidation(t *testing.T) {
 	assert.Contains(t, parsed, "scanner_version")
 	assert.Contains(t, parsed, "repositories")
 	assert.Contains(t, parsed, "total_loc")
+	assert.Contains(t, parsed, "total_file_count")
+	assert.Contains(t, parsed, "repo_count")
+	assert.Contains(t, parsed, "tech_stack")
 	assert.Contains(t, parsed, "metrics")
+	assert.Contains(t, parsed, "activity")
+	assert.Contains(t, parsed, "detection")
+	assert.Contains(t, parsed, "red_flags")
 	assert.Contains(t, parsed, "summary")
 	assert.Contains(t, parsed, "pricing_tier")
+	assert.Contains(t, parsed, "warnings")
 	assert.Contains(t, parsed, "integrity")
+
+	// Validate total_file_count and repo_count values
+	assert.Equal(t, float64(50), parsed["total_file_count"], "total_file_count should be 50")
+	assert.Equal(t, float64(1), parsed["repo_count"], "repo_count should be 1")
+
+	// Validate tech_stack structure
+	techStackRaw, ok := parsed["tech_stack"].(map[string]interface{})
+	require.True(t, ok, "tech_stack should be an object")
+	assert.Contains(t, techStackRaw, "frameworks")
+	assert.Contains(t, techStackRaw, "runtimes")
+	assert.Contains(t, techStackRaw, "databases")
+	assert.Contains(t, techStackRaw, "external_services")
+
+	// Validate activity structure
+	activityRaw, ok := parsed["activity"].(map[string]interface{})
+	require.True(t, ok, "activity should be an object")
+	assert.Contains(t, activityRaw, "grade")
+	assert.Contains(t, activityRaw, "last_commit_date")
+	assert.Contains(t, activityRaw, "contributor_count")
+	assert.Equal(t, float64(5), activityRaw["contributor_count"])
+
+	// Validate detection structure
+	detectionRaw, ok := parsed["detection"].(map[string]interface{})
+	require.True(t, ok, "detection should be an object")
+	assert.Contains(t, detectionRaw, "ai")
+	assert.Contains(t, detectionRaw, "infrastructure")
+
+	// Validate red_flags structure
+	redFlagsRaw, ok := parsed["red_flags"].(map[string]interface{})
+	require.True(t, ok, "red_flags should be an object")
+	assert.Contains(t, redFlagsRaw, "count")
+	assert.Contains(t, redFlagsRaw, "flags")
+	assert.Equal(t, float64(1), redFlagsRaw["count"])
+
+	// Validate warnings is present as array
+	warningsRaw, ok := parsed["warnings"].([]interface{})
+	require.True(t, ok, "warnings should be an array")
+	assert.Len(t, warningsRaw, 1)
+
+	// Validate head_commit_sha per repo
+	reposRaw, ok := parsed["repositories"].([]interface{})
+	require.True(t, ok, "repositories should be an array")
+	require.Len(t, reposRaw, 1)
+	repoRaw, ok := reposRaw[0].(map[string]interface{})
+	require.True(t, ok, "repository should be an object")
+	assert.Equal(t, "deadbeef1234567890abcdef1234567890abcdef", repoRaw["head_commit_sha"],
+		"head_commit_sha should be present in repository JSON")
 
 	// Verify no raw file paths leak in JSON (hotspot Path has json:"-")
 	jsonStr := string(data)
@@ -507,4 +636,122 @@ func TestJSONOutputValidation(t *testing.T) {
 	assert.Equal(t, 1, roundTrip.RepoCount)
 	require.NotNil(t, roundTrip.Metrics.Maintainability)
 	assert.Equal(t, 3.5, roundTrip.Metrics.Maintainability.DuplicationPct)
+}
+
+// TestWarningsArrayValidation creates a ScanResult with various warning codes,
+// writes it to JSON, reads it back, and verifies the warnings array round-trips
+// correctly. This validates that warning codes defined in the data contract
+// (partial_analysis, cve_lookup_skipped, large_file_skipped, analyzer_timeout)
+// survive JSON serialization/deserialization.
+func TestWarningsArrayValidation(t *testing.T) {
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, "warnings-test.json")
+
+	gradeB := models.GradeB
+	warnings := []models.Warning{
+		{Code: "partial_analysis", Message: "Some analyzers could not complete"},
+		{Code: "cve_lookup_skipped", Message: "CVE lookup skipped for npm ecosystem", Repo: "frontend", Ecosystem: "npm"},
+		{Code: "large_file_skipped", Message: "File exceeds 1MB limit", Repo: "backend"},
+		{Code: "analyzer_timeout", Message: "Complexity analyzer timed out for repo", Repo: "monolith"},
+	}
+
+	result := &models.ScanResult{
+		Version:        "1.0",
+		ScanID:         "test-warnings-001",
+		Timestamp:      "2026-03-16T00:00:00Z",
+		ScannerVersion: "0.1.0-test",
+		Repositories: []models.Repository{
+			{
+				Name:              "test-repo",
+				PathHash:          "abc123",
+				Languages:         map[string]float64{"Go": 100.0},
+				FileCount:         10,
+				LOC:               1000,
+				Status:            models.RepoStatusAnalyzed,
+				DetectedLanguages: []string{"Go"},
+			},
+		},
+		TotalLOC:       1000,
+		TotalFileCount: 10,
+		RepoCount:      1,
+		TechStack: models.TechStack{
+			Frameworks:       []string{},
+			Runtimes:         []string{"go1.21"},
+			Databases:        []string{},
+			ExternalServices: []string{},
+		},
+		Metrics: models.Metrics{
+			Maintainability: &models.Maintainability{
+				Grade:              &gradeB,
+				CyclomaticComplexity: models.ComplexityStats{Avg: 3.0, P90: 8, Max: 12},
+				NestingDepth:       models.NestingStats{Avg: 1.5, Max: 4},
+				HotspotFiles:       []models.HotspotFile{},
+			},
+			Security: &models.Security{
+				Grade:                &gradeB,
+				CVEs:                 []models.CVE{},
+				LicenseIssues:        []models.LicenseIssue{},
+				CVEEcosystemsSkipped: []string{},
+			},
+			DependencyHealth: &models.DependencyHealth{NAReason: "No dependencies detected"},
+			HandoffReadiness: &models.HandoffReadiness{Grade: &gradeB},
+		},
+		RedFlags: models.RedFlags{Count: 0, Flags: []models.RedFlag{}},
+		Summary: models.Summary{
+			ScoredCategories: []string{"maintainability", "security"},
+			OverallGrade:     &gradeB,
+			TopRisks:         []models.Risk{},
+			TopStrengths:     []models.Strength{},
+		},
+		PricingTier: models.PricingTier{Tier: models.PricingTierStandard, Reason: "1000 LOC"},
+		Warnings:    warnings,
+	}
+
+	// Write JSON
+	err := output.WriteScanResult(result, outPath)
+	require.NoError(t, err)
+
+	// Read back raw JSON
+	data, err := os.ReadFile(outPath)
+	require.NoError(t, err)
+
+	// Parse as generic JSON to validate warnings array structure
+	var parsed map[string]interface{}
+	err = json.Unmarshal(data, &parsed)
+	require.NoError(t, err)
+
+	warningsRaw, ok := parsed["warnings"].([]interface{})
+	require.True(t, ok, "warnings should be a JSON array")
+	require.Len(t, warningsRaw, 4, "should have exactly 4 warnings")
+
+	// Verify each warning has the expected code
+	expectedCodes := []string{"partial_analysis", "cve_lookup_skipped", "large_file_skipped", "analyzer_timeout"}
+	for i, w := range warningsRaw {
+		wObj, ok := w.(map[string]interface{})
+		require.True(t, ok, "each warning should be a JSON object")
+		assert.Equal(t, expectedCodes[i], wObj["code"], "warning %d should have code %q", i, expectedCodes[i])
+		assert.NotEmpty(t, wObj["message"], "warning %d should have a message", i)
+	}
+
+	// Verify optional fields are present where set
+	w1 := warningsRaw[1].(map[string]interface{})
+	assert.Equal(t, "frontend", w1["repo"], "cve_lookup_skipped warning should have repo field")
+	assert.Equal(t, "npm", w1["ecosystem"], "cve_lookup_skipped warning should have ecosystem field")
+
+	// JSON round-trip: deserialize back into ScanResult and verify warnings
+	var roundTrip models.ScanResult
+	err = json.Unmarshal(data, &roundTrip)
+	require.NoError(t, err, "JSON should deserialize back to ScanResult")
+	require.Len(t, roundTrip.Warnings, 4, "round-trip should preserve all 4 warnings")
+
+	for i, w := range roundTrip.Warnings {
+		assert.Equal(t, expectedCodes[i], w.Code, "round-trip warning %d code mismatch", i)
+		assert.NotEmpty(t, w.Message, "round-trip warning %d message should not be empty", i)
+	}
+
+	// Verify specific fields survived the round-trip
+	assert.Equal(t, "frontend", roundTrip.Warnings[1].Repo)
+	assert.Equal(t, "npm", roundTrip.Warnings[1].Ecosystem)
+	assert.Equal(t, "backend", roundTrip.Warnings[2].Repo)
+	assert.Equal(t, "monolith", roundTrip.Warnings[3].Repo)
 }

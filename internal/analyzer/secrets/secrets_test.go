@@ -204,13 +204,13 @@ func TestScan_MultipleSecrets_ExactCount(t *testing.T) {
 	dir := t.TempDir()
 	path := writeFile(t, dir, "leaked.rb", `
 # This file contains exactly 3 pattern-matched secrets
-AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"
+AWS_ACCESS_KEY = "AKIAIOSFODNN7ABCDEFG"
 STRIPE_KEY = "sk_live_51H7abcdefghijklmnopqrstuvwxyz12"
-GITHUB_TOKEN = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef12"
+GITHUB_TOKEN = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgh12"
 `)
 	files := []walker.FileInfo{{Path: path, RelPath: "leaked.rb"}}
 	r := Scan(files)
-	assert.GreaterOrEqual(t, r.SecretsCount, 2, "should detect at least 2 pattern-matched secrets")
+	assert.Equal(t, 3, r.SecretsCount, "should detect exactly 3 pattern-matched secrets (AWS key, Stripe key, GitHub PAT)")
 }
 
 func TestScan_ByCategory_Populated(t *testing.T) {
@@ -262,6 +262,11 @@ func TestScan_BinaryLikeContent(t *testing.T) {
 	assert.GreaterOrEqual(t, r.SecretsCount, 0)
 }
 
+// TestScan_SkipsVariousTestFiles verifies that the secrets scanner skips test files.
+// Note: The scanner uses path-based pattern matching via isTestOrFixture() (e.g.,
+// "_test.go", "test_", "spec/") rather than the walker.FileInfo.IsTest flag. The
+// IsTest flag is set here for correctness, but the scanner's skip logic is purely
+// path-based. If you add new test file patterns, update isTestOrFixture() in secrets.go.
 func TestScan_SkipsVariousTestFiles(t *testing.T) {
 	dir := t.TempDir()
 	testFiles := map[string]string{

@@ -1,0 +1,156 @@
+{
+  "version": "1.0",
+  "scan_id": "contract-test-healthy-saas",
+  "timestamp": "2026-03-16T19:42:49Z",
+  "scanner_version": "0.1.0-test",
+  "repositories": [
+    {
+      "name": "healthy-saas",
+      "path_hash": "7b0a1e5e1e495b4a",
+      "languages": {
+        "Dockerfile": 1.394422310756972,
+        "JSON": 16.733067729083665,
+        "JavaScript": 1.1952191235059761,
+        "Markdown": 4.382470119521913,
+        "Python": 36.65338645418327,
+        "TypeScript": 36.254980079681275,
+        "YAML": 3.386454183266932
+      },
+      "file_count": 16,
+      "loc": 502,
+      "status": "analyzed",
+      "detected_languages": [
+        "Dockerfile",
+        "JSON",
+        "JavaScript",
+        "Markdown",
+        "Python",
+        "TypeScript",
+        "YAML"
+      ]
+    }
+  ],
+  "total_loc": 502,
+  "total_file_count": 16,
+  "repo_count": 1,
+  "tech_stack": {
+    "frameworks": [
+      "FastAPI",
+      "Next.js",
+      "React"
+    ],
+    "runtimes": [],
+    "databases": [
+      "SQLAlchemy (ORM)"
+    ],
+    "external_services": []
+  },
+  "metrics": {
+    "maintainability": {
+      "grade": "B+",
+      "cyclomatic_complexity": {
+        "avg": 2.5526315789473686,
+        "p90": 7,
+        "max": 9
+      },
+      "nesting_depth": {
+        "avg": 0.4473684210526316,
+        "max": 2
+      },
+      "duplication_pct": 7.095343680709535,
+      "hotspot_count": 0,
+      "hotspot_files": [],
+      "pct_files_over_500loc": 0
+    },
+    "security": {
+      "grade": "A",
+      "secrets_found": 0,
+      "cves": [],
+      "cve_summary": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "outdated_deps": {
+        "total": 0,
+        "outdated": 0,
+        "critical": 0,
+        "outdated_pct": 0
+      },
+      "license_issues": [],
+      "license_issue_count": 0,
+      "cve_ecosystems_skipped": []
+    },
+    "dependency_health": null,
+    "handoff_readiness": {
+      "grade": "F",
+      "est_test_coverage_pct": 10.159362549800797,
+      "doc_density": "medium",
+      "env_var_count": 5,
+      "has_readme": true,
+      "has_contributing_guide": false,
+      "has_env_template": true,
+      "has_setup_script": false
+    }
+  },
+  "activity": null,
+  "detection": {
+    "ai": {
+      "llm_api": false,
+      "vector_database": false,
+      "rag_pipeline": false,
+      "mcp_servers": false,
+      "fine_tuned_models": false,
+      "training_pipeline": false,
+      "proprietary_dataset": false
+    },
+    "infrastructure": {
+      "grade": "C",
+      "iac_detected": true,
+      "iac_types": [
+        "Docker"
+      ],
+      "ci_cd_detected": true,
+      "ci_cd_provider": "GitHub Actions",
+      "monitoring_detected": false,
+      "monitoring_tools": []
+    }
+  },
+  "red_flags": {
+    "count": 1,
+    "flags": [
+      {
+        "flag": "no_git_history",
+        "detail": "No git history detected (Development Activity: N/A)",
+        "severity": "high"
+      }
+    ]
+  },
+  "summary": {
+    "scored_categories": [
+      "maintainability",
+      "security",
+      "handoff_readiness",
+      "sre_infrastructure"
+    ],
+    "overall_grade": "C+",
+    "top_risks": [],
+    "top_strengths": []
+  },
+  "pricing_tier": {
+    "tier": "starter",
+    "reason": "502 LOC"
+  },
+  "warnings": [],
+  "integrity": {
+    "scan_checksum": "6ed4a0497d4b4770c8bdd6e4a7a1a2b2db210b9810f3f29ba7faa5dfb2ef756c",
+    "scanner_public_key_id": "vettcode-scanner-key-2026-03",
+    "scanner_signature": "p+jo+dMHjYOXGb9R43CbALbXxMjBhyjRP9BqIpax607rCAS7JjNC4eH6+58TXvVhr2iUvSPJHAjeKUAwInZlDA==",
+    "cosign_nonce": null,
+    "platform_cosignature": null,
+    "platform_public_key_id": null,
+    "cosigned": false,
+    "verification_level": "self_reported"
+  }
+}

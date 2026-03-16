@@ -42,6 +42,7 @@ func SignScanResult(result *models.ScanResult) error {
 		ScannerPublicKeyID: ScannerKeyID,
 		CosignNonce:        existingNonce,
 		Cosigned:           false,
+		VerificationLevel:  models.VerificationSelfReported,
 	}
 
 	checksum, _, err := CanonicalChecksumForSigning(result)

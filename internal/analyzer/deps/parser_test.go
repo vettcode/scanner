@@ -226,3 +226,124 @@ func TestCleanVersion(t *testing.T) {
 	assert.Equal(t, "1.0.0", cleanVersion("v1.0.0"))
 	assert.Equal(t, "", cleanVersion(""))
 }
+
+// --- Tests for formats the parser supports but were not previously covered ---
+
+func TestParsePyprojectToml(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "pyproject.toml", `[project]
+name = "myapp"
+version = "1.0.0"
+dependencies = [
+    "flask",
+    "requests",
+    "sqlalchemy",
+]
+`)
+	deps := parsePython(dir)
+	require.Len(t, deps, 3)
+	names := make(map[string]bool)
+	for _, d := range deps {
+		names[d.Name] = true
+		assert.Equal(t, "pypi", d.Ecosystem)
+		assert.Equal(t, "Python", d.Language)
+	}
+	assert.True(t, names["flask"])
+	assert.True(t, names["requests"])
+	assert.True(t, names["sqlalchemy"])
+}
+
+func TestParsePyprojectToml_WithRequirementsTxt(t *testing.T) {
+	// pyproject.toml deps should be merged with requirements.txt, deduped
+	dir := t.TempDir()
+	writeTestFile(t, dir, "requirements.txt", "flask==2.3.0\n")
+	writeTestFile(t, dir, "pyproject.toml", `[project]
+dependencies = [
+    "flask",
+    "celery",
+]
+`)
+	deps := parsePython(dir)
+	// flask appears in both but should be deduped
+	names := make(map[string]bool)
+	for _, d := range deps {
+		names[d.Name] = true
+	}
+	assert.True(t, names["flask"])
+	assert.True(t, names["celery"])
+	assert.Len(t, deps, 2, "flask should be deduped across requirements.txt and pyproject.toml")
+}
+
+func TestParseJava_BuildGradleKts(t *testing.T) {
+	// The parseBuildGradle regex matches: keyword 'group:artifact:version'
+	// (with single or double quotes separated by whitespace). The Kotlin DSL
+	// form implementation("...") uses parens, which the current regex does NOT
+	// match. This test uses the Groovy-compatible string form that the parser
+	// does handle in .kts files.
+	dir := t.TempDir()
+	writeTestFile(t, dir, "build.gradle.kts", `
+plugins {
+    kotlin("jvm") version "1.9.0"
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.0"
+    testImplementation "org.junit.jupiter:junit-jupiter:5.10.0"
+    api "com.google.guava:guava:32.1.2-jre"
+}
+`)
+	deps := parseJava(dir)
+	require.Len(t, deps, 3)
+	names := make(map[string]string)
+	for _, d := range deps {
+		names[d.Name] = d.Version
+		assert.Equal(t, "maven", d.Ecosystem)
+		assert.Equal(t, "Java", d.Language)
+	}
+	assert.Equal(t, "1.9.0", names["org.jetbrains.kotlin:kotlin-stdlib"])
+	assert.Equal(t, "5.10.0", names["org.junit.jupiter:junit-jupiter"])
+	assert.Equal(t, "32.1.2-jre", names["com.google.guava:guava"])
+}
+
+func TestParseJava_BuildGradleKts_FallbackFromPom(t *testing.T) {
+	// When no pom.xml or build.gradle exist, build.gradle.kts should be tried
+	dir := t.TempDir()
+	writeTestFile(t, dir, "build.gradle.kts", `
+dependencies {
+    runtimeOnly "org.postgresql:postgresql:42.6.0"
+}
+`)
+	deps := parseJava(dir)
+	require.Len(t, deps, 1)
+	assert.Equal(t, "org.postgresql:postgresql", deps[0].Name)
+	assert.Equal(t, "42.6.0", deps[0].Version)
+}
+
+func TestParseJava_BuildGradleKts_KotlinDslNotSupported(t *testing.T) {
+	// Document that the Kotlin DSL form with parentheses is NOT parsed.
+	// This is a known limitation: implementation("group:artifact:version")
+	// does not match the current regex.
+	dir := t.TempDir()
+	writeTestFile(t, dir, "build.gradle.kts", `
+dependencies {
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.0")
+}
+`)
+	deps := parseJava(dir)
+	assert.Empty(t, deps, "Kotlin DSL parenthesized form is not supported by the current parser")
+}
+
+// --- Notes on formats listed in the task that the parser does NOT support ---
+//
+// The following lockfile/manifest formats are referenced in ManifestFiles
+// (internal/language/language.go) but have NO parsing implementation in
+// parser.go. Tests are intentionally omitted since there is no code to test:
+//
+// - package-lock.json: parseNPM only reads package.json, not the lockfile.
+// - yarn.lock: No parser exists.
+// - pnpm-lock.yaml: No parser exists.
+// - poetry.lock: No parser exists.
+// - Pipfile.lock: No parser exists.
+// - go.sum: parseGo only reads go.mod, not go.sum.
+// - composer.lock: parsePHP only reads composer.json, not the lockfile.
+// - *.gemspec: parseRuby reads Gemfile.lock or Gemfile, not gemspec files.

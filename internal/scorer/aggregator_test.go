@@ -161,6 +161,68 @@ func TestAggregate_ZeroLOC(t *testing.T) {
 	assert.InDelta(t, 0.0, a.AvgComplexity, 0.01) // LOC-weighted with zero LOC → 0
 }
 
+// TestAggregate_MultiRepo_ContributorCount documents that the aggregator does
+// NOT handle ContributorCount. ContributorCount is computed at the activity
+// analyzer level (internal/analyzer/activity), not aggregated across repos.
+// The RepoMetrics and AggregatedMetrics structs do not include a
+// ContributorCount field, so there is no dedup needed at the aggregator level.
+// If multi-repo contributor dedup is needed in the future, it must be handled
+// upstream where raw git author data is available.
+func TestAggregate_MultiRepo_ContributorCount(t *testing.T) {
+	// Verify that RepoMetrics has no ContributorCount field by constructing
+	// two repos and confirming the aggregator does not produce one.
+	repos := []RepoMetrics{
+		{LOC: 1000, SecretsCount: 1},
+		{LOC: 2000, SecretsCount: 2},
+	}
+	a := Aggregate(repos)
+	// The aggregated result should have sum of counts for tracked fields
+	assert.Equal(t, 3000, a.TotalLOC)
+	assert.Equal(t, 3, a.SecretsCount)
+	// ContributorCount is intentionally absent from AggregatedMetrics.
+	// This test exists to document that design decision.
+}
+
+// TestAggregate_MultiRepo_NoTestsRedFlag_LOCWeightedAverage demonstrates that
+// the no_tests red flag uses the LOC-weighted average of EstTestCoveragePct
+// across all repos, rather than triggering if any single repo has 0% coverage.
+//
+// Design note: The spec says "one bad repo triggers flag for entire scan" for
+// some red flags (e.g., secrets_detected, critical_cve — these use sum/count
+// aggregation). However, EstTestCoveragePct uses LOC-weighted average, which
+// means a large repo with good test coverage can mask a smaller repo with zero
+// tests. This is a deliberate design decision: the LOC-weighted average reflects
+// the overall project's testing posture rather than penalizing multi-repo scans
+// where a small utility repo might legitimately have no tests.
+func TestAggregate_MultiRepo_NoTestsRedFlag_LOCWeightedAverage(t *testing.T) {
+	repos := []RepoMetrics{
+		{LOC: 1000, EstTestCoveragePct: 0.0},   // Repo 1: zero test coverage
+		{LOC: 3000, EstTestCoveragePct: 80.0},   // Repo 2: good test coverage
+	}
+	agg := Aggregate(repos)
+
+	// LOC-weighted average: 0*0.25 + 80*0.75 = 60%
+	assert.InDelta(t, 60.0, agg.EstTestCoveragePct, 0.01,
+		"LOC-weighted average should be 60%% (0%%*0.25 + 80%%*0.75)")
+
+	// With 60% aggregated coverage, the no_tests red flag should NOT trigger
+	// (threshold is < 0.01%)
+	redFlags := EvaluateRedFlags(RedFlagInput{
+		EstTestCoveragePct: agg.EstTestCoveragePct,
+		CICDDetected:       true,
+		HasReadme:          true,
+		HasGitHistory:      true,
+	})
+
+	// Verify no_tests is NOT in the triggered flags
+	for _, f := range redFlags.Flags {
+		assert.NotEqual(t, models.RedFlagNoTests, f.Flag,
+			"no_tests should NOT trigger when LOC-weighted average coverage is 60%%")
+	}
+	assert.Equal(t, 0, redFlags.Count,
+		"no red flags should trigger with 60%% aggregated test coverage and all other flags satisfied")
+}
+
 func TestAggregate_MedianAgeMonths_Rounding(t *testing.T) {
 	// Tests that MedianAgeMonths uses math.Round instead of truncation
 	// Repo1 weight: 1000/3000 = 0.333, Repo2 weight: 2000/3000 = 0.667
