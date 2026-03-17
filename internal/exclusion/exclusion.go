@@ -44,6 +44,20 @@ var DefaultExcludedExtensions = map[string]bool{
 	".map":       true,
 }
 
+// DefaultExcludedFiles are specific filenames always excluded (lockfiles,
+// auto-generated manifests, etc.). These are not source code.
+var DefaultExcludedFiles = map[string]bool{
+	"package-lock.json": true,
+	"yarn.lock":         true,
+	"pnpm-lock.yaml":   true,
+	"composer.lock":     true,
+	"Gemfile.lock":      true,
+	"Pipfile.lock":      true,
+	"poetry.lock":       true,
+	"go.sum":            true,
+	"Cargo.lock":        true,
+}
+
 // generatedMarkers are header comments that indicate generated files.
 var generatedMarkers = []string{
 	"DO NOT EDIT",
@@ -75,6 +89,11 @@ func IsAuxiliaryPath(relPath string) bool {
 // its name, extension, or content.
 func ShouldExcludeFile(path string) bool {
 	base := filepath.Base(path)
+
+	// Check lockfiles and auto-generated manifests
+	if DefaultExcludedFiles[base] {
+		return true
+	}
 
 	// Check compound extensions (e.g., .min.js)
 	for ext := range DefaultExcludedExtensions {
