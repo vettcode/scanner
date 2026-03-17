@@ -26,7 +26,7 @@ type Result struct {
 }
 
 const (
-	tokenWindowSize    = 50     // Rabin-Karp window for token-based detection
+	tokenWindowSize    = 100    // Rabin-Karp window for token-based detection
 	lineWindowSize     = 6      // rolling window for line-hash fallback
 	minBlockLines      = 6      // minimum lines for a duplicate block
 	hashBase           = 1000000007

@@ -134,8 +134,8 @@ func makeTokenStream(values []string) []Token {
 }
 
 func TestTokenDuplication_ExactMatch(t *testing.T) {
-	// Two files with identical 60-token streams → should detect duplication
-	pattern := make([]string, 60)
+	// Two files with identical 120-token streams → should detect duplication
+	pattern := make([]string, 120)
 	for i := range pattern {
 		if i%3 == 0 {
 			pattern[i] = "if"
@@ -150,8 +150,8 @@ func TestTokenDuplication_ExactMatch(t *testing.T) {
 	tokens2 := makeTokenStream(pattern)
 
 	files := []walker.FileInfo{
-		{Path: "/a.js", LOC: 12},
-		{Path: "/b.js", LOC: 12},
+		{Path: "/a.js", LOC: 24},
+		{Path: "/b.js", LOC: 24},
 	}
 	ts := map[string][]Token{
 		"/a.js": tokens1,
@@ -165,7 +165,7 @@ func TestTokenDuplication_ExactMatch(t *testing.T) {
 func TestTokenDuplication_RenamedVariables(t *testing.T) {
 	// Two files with same structure but different variable names.
 	// After normalization (identifiers → $ID), they should match.
-	base := make([]string, 60)
+	base := make([]string, 120)
 	for i := range base {
 		switch i % 4 {
 		case 0:
@@ -183,8 +183,8 @@ func TestTokenDuplication_RenamedVariables(t *testing.T) {
 	tokens2 := makeTokenStream(base) // same normalized form
 
 	files := []walker.FileInfo{
-		{Path: "/x.js", LOC: 12},
-		{Path: "/y.js", LOC: 12},
+		{Path: "/x.js", LOC: 24},
+		{Path: "/y.js", LOC: 24},
 	}
 	ts := map[string][]Token{
 		"/x.js": tokens1,
@@ -196,16 +196,16 @@ func TestTokenDuplication_RenamedVariables(t *testing.T) {
 
 func TestTokenDuplication_NoDuplication(t *testing.T) {
 	// Two files with completely different token streams
-	tokens1 := make([]Token, 60)
-	tokens2 := make([]Token, 60)
-	for i := 0; i < 60; i++ {
+	tokens1 := make([]Token, 120)
+	tokens2 := make([]Token, 120)
+	for i := 0; i < 120; i++ {
 		tokens1[i] = Token{Value: "if", Line: i/5 + 1}
 		tokens2[i] = Token{Value: "for", Line: i/5 + 1}
 	}
 
 	files := []walker.FileInfo{
-		{Path: "/a.js", LOC: 12},
-		{Path: "/b.js", LOC: 12},
+		{Path: "/a.js", LOC: 24},
+		{Path: "/b.js", LOC: 24},
 	}
 	ts := map[string][]Token{
 		"/a.js": tokens1,
@@ -218,9 +218,9 @@ func TestTokenDuplication_NoDuplication(t *testing.T) {
 func TestTokenDuplication_BlockFiltering(t *testing.T) {
 	// Duplicate tokens that span only 3 lines (< minBlockLines=6)
 	// should be filtered out
-	tokens := make([]Token, 60)
+	tokens := make([]Token, 120)
 	for i := range tokens {
-		tokens[i] = Token{Value: "$ID", Line: (i / 20) + 1} // 3 lines total
+		tokens[i] = Token{Value: "$ID", Line: (i / 40) + 1} // 3 lines total
 	}
 
 	files := []walker.FileInfo{
