@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/vettcode/scanner/internal/language"
 	"github.com/vettcode/scanner/internal/walker"
 )
 
@@ -48,7 +49,9 @@ func Analyze(root string, walkResult *walker.WalkResult) *Result {
 	return r
 }
 
-// computeTestCoverage computes LOC-weighted test file ratio per language.
+// computeTestCoverage computes LOC-weighted test file ratio for Tier 1
+// languages only. Tier 2 files (Markdown, YAML, etc.) have no test
+// conventions and would dilute the estimate if included.
 func computeTestCoverage(wr *walker.WalkResult) float64 {
 	if wr == nil || len(wr.Files) == 0 {
 		return 0
@@ -61,6 +64,9 @@ func computeTestCoverage(wr *walker.WalkResult) float64 {
 
 	stats := make(map[string]*langStats)
 	for _, f := range wr.Files {
+		if f.Tier != language.Tier1 {
+			continue
+		}
 		s, ok := stats[f.Language]
 		if !ok {
 			s = &langStats{}

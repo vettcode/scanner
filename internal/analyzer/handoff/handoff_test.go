@@ -13,8 +13,8 @@ import (
 func TestComputeTestCoverage(t *testing.T) {
 	wr := &walker.WalkResult{
 		Files: []walker.FileInfo{
-			{Language: "Go", LOC: 1000, IsTest: false},
-			{Language: "Go", LOC: 250, IsTest: true},
+			{Language: "Go", Tier: language.Tier1, LOC: 1000, IsTest: false},
+			{Language: "Go", Tier: language.Tier1, LOC: 250, IsTest: true},
 		},
 	}
 	pct := computeTestCoverage(wr)
@@ -24,7 +24,7 @@ func TestComputeTestCoverage(t *testing.T) {
 func TestComputeTestCoverage_NoTests(t *testing.T) {
 	wr := &walker.WalkResult{
 		Files: []walker.FileInfo{
-			{Language: "Go", LOC: 1000, IsTest: false},
+			{Language: "Go", Tier: language.Tier1, LOC: 1000, IsTest: false},
 		},
 	}
 	assert.Equal(t, 0.0, computeTestCoverage(wr))
@@ -98,14 +98,14 @@ func TestAnalyze_FullProject(t *testing.T) {
 	assert.True(t, r.HasTestConfig)
 	assert.True(t, r.HasCoverageConfig)
 	assert.Equal(t, 2, r.EnvVarCount)
-	assert.InDelta(t, 28.57, r.EstTestCoveragePct, 0.5) // ~200/(500+200) for TS portion
+	assert.InDelta(t, 28.57, r.EstTestCoveragePct, 0.5) // 200/(500+200) — Tier 1 only, Markdown excluded
 }
 
 func TestAnalyze_BareProject(t *testing.T) {
 	dir := t.TempDir()
 	wr := &walker.WalkResult{
 		Files: []walker.FileInfo{
-			{Language: "Go", LOC: 100, IsTest: false},
+			{Language: "Go", Tier: language.Tier1, LOC: 100, IsTest: false},
 		},
 	}
 	r := Analyze(dir, wr)
