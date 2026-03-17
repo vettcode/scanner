@@ -427,14 +427,26 @@ const awsKey = "AKIAIOSFODNN7ABCDEFG"
 
 func TestScan_SkipsRegexPatternDefinitions(t *testing.T) {
 	dir := t.TempDir()
-	// Pattern definition lines contain secret markers but are not real secrets
-	path := writeFile(t, dir, "detector.go", `package detector
-var pattern = regexp.MustCompile("-----BEGIN RSA PRIVATE KEY-----")
-var p2 = regexp.MustCompile("-----BEGIN EC PRIVATE KEY-----")
-`)
-	files := []walker.FileInfo{{Path: path, RelPath: "detector.go"}}
-	r := Scan(files)
-	assert.Equal(t, 0, r.SecretsCount, "regex pattern definitions should be allowlisted")
+	tests := []struct {
+		name    string
+		file    string
+		content string
+	}{
+		{"Go", "detector.go", `var p = regexp.MustCompile("-----BEGIN RSA PRIVATE KEY-----")`},
+		{"Python", "detector.py", `p = re.compile(r"-----BEGIN RSA PRIVATE KEY-----")`},
+		{"JavaScript", "detector.js", `const p = new RegExp("-----BEGIN RSA PRIVATE KEY-----")`},
+		{"Java", "Detector.java", `Pattern p = Pattern.compile("-----BEGIN RSA PRIVATE KEY-----");`},
+		{"PHP", "detector.php", `preg_match('/-----BEGIN RSA PRIVATE KEY-----/', $line);`},
+		{"Ruby", "detector.rb", `p = Regexp.new("-----BEGIN RSA PRIVATE KEY-----")`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeFile(t, dir, tt.file, tt.content)
+			files := []walker.FileInfo{{Path: path, RelPath: tt.file}}
+			r := Scan(files)
+			assert.Equal(t, 0, r.SecretsCount, "%s regex pattern definition should be allowlisted", tt.name)
+		})
+	}
 }
 
 func TestScan_SkipsTemplateEnvVars(t *testing.T) {

@@ -113,8 +113,13 @@ var allowlistPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\$\{[A-Z_]+\}`),                 // Shell env: ${SECRET_KEY}
 	regexp.MustCompile(`\bos\.environ\b|\bos\.getenv\b`), // Python env lookups
 	regexp.MustCompile(`\bprocess\.env\b`),               // Node.js env lookups
-	// Regex/pattern definition lines (e.g., regexp.MustCompile, re.compile)
-	regexp.MustCompile(`(?i)regexp\.MustCompile|regexp\.Compile|re\.compile|new RegExp`),
+	// Regex/pattern definition lines — all Tier 1 languages
+	regexp.MustCompile(`(?i)regexp\.MustCompile|regexp\.Compile`), // Go
+	regexp.MustCompile(`(?i)\bre\.compile\b`),                     // Python
+	regexp.MustCompile(`(?i)\bnew RegExp\b`),                      // JavaScript/TypeScript
+	regexp.MustCompile(`(?i)Pattern\.compile`),                    // Java
+	regexp.MustCompile(`(?i)\bpreg_match|preg_replace`),           // PHP
+	regexp.MustCompile(`(?i)\bRegexp\.new\b`),                     // Ruby
 }
 
 // Scan scans files for hardcoded secrets.
