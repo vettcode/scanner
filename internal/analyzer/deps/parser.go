@@ -71,10 +71,12 @@ func ParseDependencies(root string) *ParseResult {
 	return r
 }
 
-// parseNPM extracts dependencies from package.json.
+// parseNPM extracts dependencies from package.json, using package-lock.json
+// for exact locked versions when available. Without the lockfile, version
+// ranges like "^8" get cleaned to "8" which causes false-positive CVE matches.
 func parseNPM(root string) []Dependency {
-	path := filepath.Join(root, "package.json")
-	data, err := os.ReadFile(path)
+	pkgPath := filepath.Join(root, "package.json")
+	data, err := os.ReadFile(pkgPath)
 	if err != nil {
 		return nil
 	}
@@ -87,6 +89,10 @@ func parseNPM(root string) []Dependency {
 		return nil
 	}
 
+	// Build locked version map from lockfiles if available.
+	// Tries: package-lock.json, yarn.lock, pnpm-lock.yaml (first found wins).
+	locked := parseNPMLockVersions(root)
+
 	var deps []Dependency
 	seen := make(map[string]bool)
 
@@ -94,9 +100,20 @@ func parseNPM(root string) []Dependency {
 		for name, version := range m {
 			if !seen[name] {
 				seen[name] = true
+				v := cleanVersion(version)
+				// Prefer the exact locked version over the cleaned range.
+				if lv, ok := locked[name]; ok {
+					v = lv
+				}
+				// Skip deps without a usable semver version (e.g. "8" from "^8").
+				// These cause false-positive CVE matches. A valid npm version
+				// has at least two dot-separated segments (e.g. "8.5.8" or "14.2").
+				if !looksLikeSemver(v) {
+					continue
+				}
 				deps = append(deps, Dependency{
 					Name:      name,
-					Version:   cleanVersion(version),
+					Version:   v,
 					Ecosystem: "npm",
 					Language:  "JavaScript",
 				})
@@ -108,6 +125,209 @@ func parseNPM(root string) []Dependency {
 	addDeps(pkg.DevDependencies)
 
 	return deps
+}
+
+// looksLikeSemver returns true if the version string has at least two
+// dot-separated numeric segments (e.g. "8.5", "14.2.35"). Single numbers
+// like "8" (from cleaned ranges like "^8") are not reliable for CVE matching.
+func looksLikeSemver(v string) bool {
+	parts := strings.SplitN(v, ".", 3)
+	if len(parts) < 2 {
+		return false
+	}
+	// First two parts should start with a digit.
+	for _, p := range parts[:2] {
+		if len(p) == 0 || p[0] < '0' || p[0] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// parseNPMLockVersions tries package-lock.json, yarn.lock, and pnpm-lock.yaml
+// (in that order) to resolve exact locked versions for direct dependencies.
+func parseNPMLockVersions(root string) map[string]string {
+	if result := parsePackageLockJSON(root); result != nil {
+		return result
+	}
+	if result := parseYarnLock(root); result != nil {
+		return result
+	}
+	return parsePnpmLock(root)
+}
+
+// parsePackageLockJSON reads package-lock.json (v1/v2/v3) for locked versions.
+func parsePackageLockJSON(root string) map[string]string {
+	data, err := os.ReadFile(filepath.Join(root, "package-lock.json"))
+	if err != nil {
+		return nil
+	}
+
+	var lockfile struct {
+		Packages map[string]struct {
+			Version string `json:"version"`
+		} `json:"packages"`
+		Dependencies map[string]struct {
+			Version string `json:"version"`
+		} `json:"dependencies"`
+	}
+	if json.Unmarshal(data, &lockfile) != nil {
+		return nil
+	}
+
+	result := make(map[string]string)
+
+	// v2/v3: top-level deps are at "node_modules/<name>"
+	if len(lockfile.Packages) > 0 {
+		for key, entry := range lockfile.Packages {
+			if !strings.HasPrefix(key, "node_modules/") {
+				continue
+			}
+			// Only top-level: skip nested (e.g. "node_modules/next/node_modules/postcss")
+			name := strings.TrimPrefix(key, "node_modules/")
+			if strings.Contains(name, "node_modules/") {
+				continue
+			}
+			if entry.Version != "" {
+				result[name] = entry.Version
+			}
+		}
+		return result
+	}
+
+	// v1 fallback
+	for name, entry := range lockfile.Dependencies {
+		if entry.Version != "" {
+			result[name] = entry.Version
+		}
+	}
+	return result
+}
+
+// parseYarnLock reads yarn.lock (classic v1 format) for locked versions.
+// Format:
+//
+//	package-name@^range:
+//	  version "1.2.3"
+func parseYarnLock(root string) map[string]string {
+	f, err := os.Open(filepath.Join(root, "yarn.lock"))
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	result := make(map[string]string)
+	var currentNames []string
+
+	yarnPkgRe := regexp.MustCompile(`^"?([^@\s]+)@`)
+	yarnVerRe := regexp.MustCompile(`^\s+version\s+"([^"]+)"`)
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "#") || line == "" {
+			continue
+		}
+
+		// Package header line(s): "postcss@^8, postcss@^8.4.0:"
+		if !strings.HasPrefix(line, " ") && strings.Contains(line, "@") {
+			currentNames = nil
+			// Split by ", " for combined entries
+			for _, entry := range strings.Split(strings.TrimSuffix(line, ":"), ", ") {
+				entry = strings.Trim(entry, "\"")
+				m := yarnPkgRe.FindStringSubmatch(entry)
+				if len(m) >= 2 {
+					currentNames = append(currentNames, m[1])
+				}
+			}
+			continue
+		}
+
+		// Version line
+		if m := yarnVerRe.FindStringSubmatch(line); len(m) >= 2 && len(currentNames) > 0 {
+			for _, name := range currentNames {
+				if _, exists := result[name]; !exists {
+					result[name] = m[1]
+				}
+			}
+			currentNames = nil
+		}
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+// parsePnpmLock reads pnpm-lock.yaml for locked versions.
+// Format (v6+):
+//
+//	dependencies:
+//	  package-name:
+//	    specifier: ^1.2.3
+//	    version: 1.2.3
+func parsePnpmLock(root string) map[string]string {
+	f, err := os.Open(filepath.Join(root, "pnpm-lock.yaml"))
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	result := make(map[string]string)
+	var currentPkg string
+	inDeps := false
+
+	scanner := bufio.NewScanner(f)
+	pnpmPkgRe := regexp.MustCompile(`^\s{4}'?([^:'\s]+)'?:$`)
+	pnpmVerRe := regexp.MustCompile(`^\s{6}version:\s+'?([^'\s]+)'?`)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Section headers
+		if line == "dependencies:" || line == "devDependencies:" || line == "optionalDependencies:" {
+			inDeps = true
+			currentPkg = ""
+			continue
+		}
+		// New top-level section ends deps
+		if len(line) > 0 && line[0] != ' ' {
+			inDeps = false
+			currentPkg = ""
+			continue
+		}
+
+		if !inDeps {
+			continue
+		}
+
+		// Package name at 4-space indent
+		if m := pnpmPkgRe.FindStringSubmatch(line); len(m) >= 2 {
+			currentPkg = m[1]
+			continue
+		}
+
+		// Version at 6-space indent
+		if currentPkg != "" {
+			if m := pnpmVerRe.FindStringSubmatch(line); len(m) >= 2 {
+				ver := m[1]
+				// pnpm may include peer suffixes like "8.5.8(postcss@8.5.8)" — strip them
+				if idx := strings.IndexByte(ver, '('); idx > 0 {
+					ver = ver[:idx]
+				}
+				if _, exists := result[currentPkg]; !exists {
+					result[currentPkg] = ver
+				}
+				currentPkg = ""
+			}
+		}
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 // parsePython extracts dependencies from requirements.txt.

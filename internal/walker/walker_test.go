@@ -202,6 +202,9 @@ func TestWalk_ExcludesAllDefaultDirs(t *testing.T) {
 		".next",
 		".nuxt",
 		"node_modules",
+		"coverage",
+		".nyc_output",
+		"storybook-static",
 	}
 
 	for _, excluded := range excludedDirs {

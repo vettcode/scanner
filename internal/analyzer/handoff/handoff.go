@@ -49,54 +49,35 @@ func Analyze(root string, walkResult *walker.WalkResult) *Result {
 	return r
 }
 
-// computeTestCoverage computes LOC-weighted test file ratio for Tier 1
-// languages only. Tier 2 files (Markdown, YAML, etc.) have no test
-// conventions and would dilute the estimate if included.
+// computeTestCoverage estimates test coverage using a test-effectiveness
+// multiplier for Tier 1 languages only. Each line of test code typically
+// exercises ~4 lines of source (through setup, assertions, mocking), so
+// the raw testLOC/sourceLOC ratio is multiplied by 4 to approximate actual
+// coverage. Tier 2 files (Markdown, YAML, etc.) are excluded because they
+// have no test conventions and would dilute the estimate.
 func computeTestCoverage(wr *walker.WalkResult) float64 {
 	if wr == nil || len(wr.Files) == 0 {
 		return 0
 	}
 
-	type langStats struct {
-		testLOC   int
-		sourceLOC int
-	}
-
-	stats := make(map[string]*langStats)
+	var testLOC, sourceLOC int
 	for _, f := range wr.Files {
 		if f.Tier != language.Tier1 {
 			continue
 		}
-		s, ok := stats[f.Language]
-		if !ok {
-			s = &langStats{}
-			stats[f.Language] = s
-		}
 		if f.IsTest {
-			s.testLOC += f.LOC
+			testLOC += f.LOC
 		} else {
-			s.sourceLOC += f.LOC
+			sourceLOC += f.LOC
 		}
 	}
 
-	totalLOC := 0
-	weightedRatio := 0.0
-
-	for _, s := range stats {
-		langTotal := s.testLOC + s.sourceLOC
-		if langTotal == 0 || s.sourceLOC == 0 {
-			continue
-		}
-		ratio := float64(s.testLOC) / float64(langTotal)
-		weightedRatio += ratio * float64(langTotal)
-		totalLOC += langTotal
-	}
-
-	if totalLOC == 0 {
+	if sourceLOC == 0 {
 		return 0
 	}
 
-	pct := (weightedRatio / float64(totalLOC)) * 100.0
+	// Test effectiveness multiplier: each test line covers ~4 source lines.
+	pct := float64(testLOC) / float64(sourceLOC) * 4.0 * 100.0
 	if pct > 100 {
 		pct = 100
 	}

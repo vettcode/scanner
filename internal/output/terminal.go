@@ -159,6 +159,21 @@ func (f *TerminalFormatter) formatSecurity(w io.Writer, s *models.Security) {
 		breakdown := fmt.Sprintf("%d critical, %d high, %d medium, %d low",
 			s.CVESummary.Critical, s.CVESummary.High, s.CVESummary.Medium, s.CVESummary.Low)
 		fmt.Fprintf(w, "  Known CVEs:            %d (%s)\n", totalCVEs, breakdown)
+		for i, cve := range s.CVEs {
+			if i >= 5 {
+				remaining := len(s.CVEs) - 5
+				fmt.Fprintf(w, "    ... and %d more\n", remaining)
+				break
+			}
+			fix := cve.FixedIn
+			if fix == "" {
+				fix = "no fix available"
+			} else {
+				fix = "fix: " + fix
+			}
+			fmt.Fprintf(w, "    %d. %s  %s@%s  (%s)\n",
+				i+1, c.red(string(cve.Severity)), cve.Package, cve.CurrentVersion, fix)
+		}
 	} else {
 		fmt.Fprintf(w, "  Known CVEs:            %d\n", totalCVEs)
 	}
@@ -227,7 +242,7 @@ func (f *TerminalFormatter) formatHandoff(w io.Writer, h *models.HandoffReadines
 	}
 	grade := gradeStr(h.Grade)
 	fmt.Fprintf(w, "%-25s%s\n", c.bold("HANDOFF READINESS"), c.gradeColor(grade))
-	fmt.Fprintf(w, "  Est. Test Coverage:    %.0f%% (file ratio)\n", h.EstTestCoveragePct)
+	fmt.Fprintf(w, "  Est. Test Coverage:    %.0f%%\n", h.EstTestCoveragePct)
 	fmt.Fprintf(w, "  Doc Density:           %s\n", titleCase(string(h.DocDensity)))
 	fmt.Fprintf(w, "  Env Vars:              %d\n", h.EnvVarCount)
 }

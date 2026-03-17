@@ -243,7 +243,7 @@ The JSON output contains ONLY:
 
 **Acceptance Criteria:**
 
-- AC-12.1: Estimated test coverage percentage computed via test file ratio heuristic (test files / total files per language, LOC-weighted). See Section 5.6 for detection patterns and computation.
+- AC-12.1: Estimated test coverage percentage computed via test-effectiveness heuristic (`min(100, testLOC / sourceLOC × 4)` for Tier 1 languages). See Section 5.6 for detection patterns and computation.
 - AC-12.2: Documentation density classified as high/medium/low based on README presence, inline comment ratio, and doc file count
 - AC-12.3: Environment variable count computed from .env.example, .env.template, or config schema files
 - AC-12.4: Boolean flags for: has_readme, has_contributing_guide, has_env_template, has_setup_script
@@ -708,7 +708,7 @@ Rules are loaded from a YAML/JSON config bundled with the scanner, making them e
 
 ### 5.6 Test Coverage Estimation
 
-The scanner cannot execute test suites (that would require installing dependencies, build tools, and language runtimes — out of scope for a static analysis tool). V1 uses a **test file ratio** as a proxy.
+The scanner cannot execute test suites (that would require installing dependencies, build tools, and language runtimes — out of scope for a static analysis tool). V1 uses a **test-effectiveness heuristic** as a proxy.
 
 **Test file detection — naming conventions per language:**
 
@@ -721,18 +721,18 @@ The scanner cannot execute test suites (that would require installing dependenci
 | Ruby | `*_spec.rb`, files under `spec/` |
 | PHP | `*Test.php`, files under `tests/` |
 
-Detection runs during the file walker pass — each file is classified as test or source based on the patterns above. Files that match no Tier 1/Tier 2 language are excluded from the ratio.
+Detection runs during the file walker pass — each file is classified as test or source based on the patterns above. Only **Tier 1 languages** are included in the coverage estimate; Tier 2 files (Markdown, YAML, etc.) have no test conventions and would dilute the estimate.
 
-**Ratio computation:**
+**Coverage computation:**
 
 ```
-per_language_ratio = test_files / (test_files + source_files)
-estimated_test_coverage_pct = LOC-weighted average of per_language_ratio * 100
+estimated_test_coverage_pct = min(100, testLOC / sourceLOC * 4 * 100)
 ```
 
-- Capped at 100
-- If a language has 0 source files, it is excluded from the average
-- Example: 20 source files + 15 test files → 43% estimated coverage
+- Uses a **4× test-effectiveness multiplier** — each line of test code typically exercises ~4 lines of source through setup, assertions, and mocking
+- Calibrated against real projects with known test coverage (e.g., a project with 70% actual Jest line coverage and a 0.167 test/source LOC ratio yields `0.167 × 4 = 67%`)
+- Only Tier 1 language LOC is counted; if sourceLOC is 0, coverage is 0
+- Example: 2000 source LOC + 250 test LOC → `250/2000 * 4 * 100 = 50%` estimated coverage
 
 **Test framework config detection (bonus signals — not scored):**
 
@@ -1271,6 +1271,7 @@ The scanner always excludes the following directories/patterns (not configurable
 
 - `node_modules/`, `vendor/`, `.git/`, `__pycache__/`, `.venv/`, `venv/`
 - `dist/`, `build/`, `out/`, `.next/`, `.nuxt/`
+- `coverage/`, `.nyc_output/`, `storybook-static/` (generated test/build output)
 - `*.min.js`, `*.min.css`, `*.bundle.js`, `*.map`
 - Binary files (detected by content, not extension)
 - Generated files (detected by header comments like "DO NOT EDIT", "auto-generated")
@@ -1305,6 +1306,8 @@ SECURITY                 <grade>
     <repo>/<file_path>: <N> potential secret(s)
     ...
   Known CVEs:            <N> (<breakdown>)
+    1. <severity>  <package>@<version>  (fix: <fixed_version>)
+    ...
   Outdated Deps:         <N>/<total>
   License Issues:        <N>
 
@@ -1334,7 +1337,7 @@ INFRASTRUCTURE           <grade>
   External Services:     <service>, <service>, ...
 
 HANDOFF READINESS        <grade>
-  Est. Test Coverage:    <pct>% (file ratio)
+  Est. Test Coverage:    <pct>%
   Doc Density:           <High|Medium|Low>
   Env Vars:              <N>
 

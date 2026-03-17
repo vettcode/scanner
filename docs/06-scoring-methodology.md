@@ -96,7 +96,7 @@ The **overall grade** uses the same mapping applied to the weighted average of a
 **What it measures:** How prepared the codebase is for a new owner to take over.
 
 **Metrics collected by scanner:**
-- Estimated test coverage % (file-ratio heuristic: test files / total files, LOC-weighted)
+- Estimated test coverage % (test-effectiveness heuristic: `min(100, testLOC / sourceLOC × 4)` for Tier 1 languages)
 - Documentation density (high / medium / low — based on README, inline comments, doc files)
 - Environment variable count (from .env.example, .env.template, or config schema)
 
@@ -108,7 +108,7 @@ The **overall grade** uses the same mapping applied to the weighted average of a
 | Documentation | 25% | `high → 90, medium → 60, low → 30` | Categorical mapping |
 | Env complexity | 25% | `max(0, 100 - max(0, env_count - 5) * 3)` | ≤5 → 100, 15 → 70, 25 → 40, 38 → 0 |
 
-**Why these thresholds:** Test coverage of 80% is widely considered "strong" for production applications. The file-ratio heuristic is always labeled "Est. Test Coverage" in the UI — it is not execution coverage. Documentation density uses a categorical scale because measuring doc quality precisely requires LLM analysis (reserved for Deep Scan). Environment variable count reflects configuration complexity a new owner must manage.
+**Why these thresholds:** Test coverage of 80% is widely considered "strong" for production applications. The heuristic uses a **test-effectiveness multiplier of 4×** on the `testLOC / sourceLOC` ratio — each line of test code typically exercises ~4 lines of source through setup, assertions, and mocking. This was calibrated against real projects with known Jest/Go test coverage (e.g., a project with 70% actual line coverage and a 0.167 test/source ratio yields `0.167 × 4 = 67%`). The estimate is always labeled "Est. Test Coverage" in the UI — it is not execution coverage. Only Tier 1 languages are included; Tier 2 files (Markdown, YAML, etc.) have no test conventions and would dilute the estimate. Documentation density uses a categorical scale because measuring doc quality precisely requires LLM analysis (reserved for Deep Scan). Environment variable count reflects configuration complexity a new owner must manage.
 
 **Env complexity note:** The multiplier was adjusted from 5 to 3 (floor at 38 env vars instead of 25) because mature SaaS products commonly have 25–30 environment variables. The original threshold penalized well-configured production apps too aggressively. Monitor post-launch and recalibrate if needed.
 
@@ -355,7 +355,7 @@ Displayed on every report:
 
 1. **No comparative benchmarks (V1).** Grades are based on absolute thresholds from industry best practices, not percentile ranking against other codebases. "B+" means the code meets specific quality thresholds, not that it's better than X% of other projects. Comparative benchmarking is planned for V2 when sufficient anonymized data is available.
 
-2. **Estimated test coverage is a heuristic.** The scanner uses a file-ratio approach (test files / total files, LOC-weighted) — not test execution. Actual coverage may differ. Always labeled "Est. Test Coverage" in reports.
+2. **Estimated test coverage is a heuristic.** The scanner uses a test-effectiveness multiplier (`testLOC / sourceLOC × 4`, Tier 1 languages only) — not test execution. Actual coverage may differ. Always labeled "Est. Test Coverage" in reports.
 
 3. **AI detection is presence-based, not quality-based.** The static scanner detects whether AI capabilities exist (LLM API calls, vector DB imports) but cannot assess their quality, defensibility, or business value. Deep Scan provides this analysis.
 

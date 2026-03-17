@@ -13,12 +13,12 @@ import (
 func TestComputeTestCoverage(t *testing.T) {
 	wr := &walker.WalkResult{
 		Files: []walker.FileInfo{
-			{Language: "Go", Tier: language.Tier1, LOC: 1000, IsTest: false},
+			{Language: "Go", Tier: language.Tier1, LOC: 2000, IsTest: false},
 			{Language: "Go", Tier: language.Tier1, LOC: 250, IsTest: true},
 		},
 	}
 	pct := computeTestCoverage(wr)
-	assert.InDelta(t, 20.0, pct, 0.01) // 250 / (1000+250) = 20%
+	assert.InDelta(t, 50.0, pct, 0.01) // 250/2000 * 4 * 100 = 50%
 }
 
 func TestComputeTestCoverage_NoTests(t *testing.T) {
@@ -86,8 +86,8 @@ func TestAnalyze_FullProject(t *testing.T) {
 
 	wr := &walker.WalkResult{
 		Files: []walker.FileInfo{
-			{Language: "TypeScript", Tier: language.Tier1, LOC: 500, IsTest: false},
-			{Language: "TypeScript", Tier: language.Tier1, LOC: 200, IsTest: true},
+			{Language: "TypeScript", Tier: language.Tier1, LOC: 1000, IsTest: false},
+			{Language: "TypeScript", Tier: language.Tier1, LOC: 100, IsTest: true},
 			{Language: "Markdown", LOC: 10},
 		},
 	}
@@ -98,7 +98,7 @@ func TestAnalyze_FullProject(t *testing.T) {
 	assert.True(t, r.HasTestConfig)
 	assert.True(t, r.HasCoverageConfig)
 	assert.Equal(t, 2, r.EnvVarCount)
-	assert.InDelta(t, 28.57, r.EstTestCoveragePct, 0.5) // 200/(500+200) — Tier 1 only, Markdown excluded
+	assert.InDelta(t, 40.0, r.EstTestCoveragePct, 0.5) // 100/1000 * 4 * 100 = 40% — Tier 1 only, Markdown excluded
 }
 
 func TestAnalyze_BareProject(t *testing.T) {

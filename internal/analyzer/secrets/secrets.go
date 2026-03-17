@@ -101,6 +101,7 @@ var testFilePatterns = []string{
 	"mock", "fake", "stub",
 	"examples/", "example/",
 	"readme",
+	"docs/", "doc/",
 }
 
 // allowlistPatterns are patterns that indicate false positives.
@@ -111,6 +112,7 @@ var allowlistPatterns = []*regexp.Regexp{
 	// Template variables / env references are not real secrets
 	regexp.MustCompile(`\{\{.*\.Env\..*\}\}`),           // Go template env: {{ .Env.TOKEN }}
 	regexp.MustCompile(`\$\{[A-Z_]+\}`),                 // Shell env: ${SECRET_KEY}
+	regexp.MustCompile(`\$\{\{.*\}\}`),                  // GitHub Actions / template: ${{ secrets.TOKEN }}
 	regexp.MustCompile(`\bos\.environ\b|\bos\.getenv\b`), // Python env lookups
 	regexp.MustCompile(`\bprocess\.env\b`),               // Node.js env lookups
 	// Regex/pattern definition lines — all Tier 1 languages

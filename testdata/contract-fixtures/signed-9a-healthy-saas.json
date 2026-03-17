@@ -1,23 +1,23 @@
 {
   "version": "1.0",
   "scan_id": "contract-test-healthy-saas",
-  "timestamp": "2026-03-17T01:02:51Z",
+  "timestamp": "2026-03-17T03:45:55Z",
   "scanner_version": "0.1.0-test",
   "repositories": [
     {
       "name": "healthy-saas",
       "path_hash": "7b0a1e5e1e495b4a",
       "languages": {
-        "Dockerfile": 1.394422310756972,
-        "JSON": 16.733067729083665,
-        "JavaScript": 1.1952191235059761,
-        "Markdown": 4.382470119521913,
-        "Python": 36.65338645418327,
-        "TypeScript": 36.254980079681275,
-        "YAML": 3.386454183266932
+        "Dockerfile": 1.5695067264573992,
+        "JSON": 6.278026905829597,
+        "JavaScript": 1.345291479820628,
+        "Markdown": 4.932735426008969,
+        "Python": 41.25560538116592,
+        "TypeScript": 40.80717488789238,
+        "YAML": 3.811659192825112
       },
-      "file_count": 16,
-      "loc": 502,
+      "file_count": 15,
+      "loc": 446,
       "status": "analyzed",
       "detected_languages": [
         "Dockerfile",
@@ -30,8 +30,8 @@
       ]
     }
   ],
-  "total_loc": 502,
-  "total_file_count": 16,
+  "total_loc": 446,
+  "total_file_count": 15,
   "repo_count": 1,
   "tech_stack": {
     "frameworks": [
@@ -47,7 +47,7 @@
   },
   "metrics": {
     "maintainability": {
-      "grade": "B+",
+      "grade": "A",
       "cyclomatic_complexity": {
         "avg": 2.5526315789473686,
         "p90": 7,
@@ -57,7 +57,7 @@
         "avg": 0.4473684210526316,
         "max": 2
       },
-      "duplication_pct": 7.095343680709535,
+      "duplication_pct": 0,
       "hotspot_count": 0,
       "hotspot_files": [],
       "pct_files_over_500loc": 0
@@ -84,8 +84,8 @@
     },
     "dependency_health": null,
     "handoff_readiness": {
-      "grade": "F",
-      "est_test_coverage_pct": 10.159362549800797,
+      "grade": "C+",
+      "est_test_coverage_pct": 63.55140186915887,
       "doc_density": "medium",
       "env_var_count": 5,
       "has_readme": true,
@@ -134,19 +134,19 @@
       "handoff_readiness",
       "sre_infrastructure"
     ],
-    "overall_grade": "C+",
+    "overall_grade": "A-",
     "top_risks": [],
     "top_strengths": []
   },
   "pricing_tier": {
     "tier": "starter",
-    "reason": "502 LOC"
+    "reason": "446 LOC"
   },
   "warnings": [],
   "integrity": {
-    "scan_checksum": "58620b93e6bf99e28a6e1c0ae4cd25d1fbe85c4c25666b5aa40e3fdba575499d",
+    "scan_checksum": "c72ab7c7ad84cacb72cc958a5ee4bd0b99c2c69478cdbccd39f432cc94b38496",
     "scanner_public_key_id": "vettcode-scanner-key-2026-03",
-    "scanner_signature": "lo3ppdhagcfpUj9E9auz1a/dvYl5NwzR7QPMkNYfGU7hZsOUGPBoch1hni+L8Mh+1BnZiIcqtD5mMBzmiGinAg==",
+    "scanner_signature": "4e04OaPf2RXKtfawoB0y6sbr9KvTsZV/8En9z+QZUtF/FEF+QQCjuP12pgnw25skNsjy+G3A9eYHjQWRDH5qCw==",
     "cosign_nonce": null,
     "platform_cosignature": null,
     "platform_public_key_id": null,

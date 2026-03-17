@@ -9,31 +9,38 @@ import (
 
 // DefaultExcludedDirs are directories always excluded from scanning.
 var DefaultExcludedDirs = map[string]bool{
-	"node_modules": true,
-	"vendor":       true,
-	".git":         true,
-	"__pycache__":  true,
-	".venv":        true,
-	"venv":         true,
-	"dist":         true,
-	"build":        true,
-	"out":          true,
-	".next":        true,
-	".nuxt":        true,
+	"node_modules":    true,
+	"vendor":          true,
+	".git":            true,
+	"__pycache__":     true,
+	".venv":           true,
+	"venv":            true,
+	"dist":            true,
+	"build":           true,
+	"out":             true,
+	".next":           true,
+	".nuxt":           true,
+	"coverage":        true, // test coverage reports (Jest, Istanbul, etc.)
+	".nyc_output":     true, // Istanbul/nyc intermediate coverage data
+	"storybook-static": true, // Storybook build output
 }
 
 // AuxiliaryDirPatterns are directory names that contain non-production code
 // (scripts, demos, tooling). Files in these dirs are still walked for language
 // detection and LOC, but are excluded from quality metrics like duplication.
 var AuxiliaryDirPatterns = map[string]bool{
-	"examples": true,
-	"example":  true,
-	"sandbox":  true,
-	"bin":      true,
-	"scripts":  true,
-	"tools":    true,
-	"docs":     true,
-	"doc":      true,
+	"examples":  true,
+	"example":   true,
+	"sandbox":   true,
+	"bin":       true,
+	"scripts":   true,
+	"tools":     true,
+	"docs":      true,
+	"doc":       true,
+	"docs_src":  true, // documentation source examples (e.g. FastAPI tutorial variants)
+	"samples":   true,
+	"demo":      true,
+	"demos":     true,
 }
 
 // DefaultExcludedExtensions are file extensions always excluded.

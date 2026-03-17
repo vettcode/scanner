@@ -201,6 +201,140 @@ dependencies {
 	assert.Equal(t, "3.1.0", deps[0].Version)
 }
 
+func TestParseNPM_WithLockfile(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "package.json", `{
+		"dependencies": {
+			"postcss": "^8",
+			"next": "^14.2.35"
+		}
+	}`)
+	writeTestFile(t, dir, "package-lock.json", `{
+		"lockfileVersion": 3,
+		"packages": {
+			"": {"name": "myapp", "version": "1.0.0"},
+			"node_modules/postcss": {"version": "8.5.8"},
+			"node_modules/next": {"version": "14.2.35"},
+			"node_modules/next/node_modules/postcss": {"version": "8.4.31"}
+		}
+	}`)
+
+	deps := parseNPM(dir)
+	assert.Len(t, deps, 2)
+
+	versions := make(map[string]string)
+	for _, d := range deps {
+		versions[d.Name] = d.Version
+	}
+	// Should use locked versions, not cleaned ranges
+	assert.Equal(t, "8.5.8", versions["postcss"], "should use package-lock.json version, not cleaned range '8'")
+	assert.Equal(t, "14.2.35", versions["next"])
+}
+
+func TestParseNPM_LockfileV1(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "package.json", `{
+		"dependencies": {"express": "^4.18.0"}
+	}`)
+	writeTestFile(t, dir, "package-lock.json", `{
+		"lockfileVersion": 1,
+		"dependencies": {
+			"express": {"version": "4.18.2"}
+		}
+	}`)
+
+	deps := parseNPM(dir)
+	require.Len(t, deps, 1)
+	assert.Equal(t, "4.18.2", deps[0].Version)
+}
+
+func TestParseNPM_WithYarnLock(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "package.json", `{
+		"dependencies": {
+			"postcss": "^8",
+			"react": "^18.2.0"
+		}
+	}`)
+	writeTestFile(t, dir, "yarn.lock", `# yarn lockfile v1
+
+postcss@^8:
+  version "8.5.8"
+  resolved "https://registry.yarnpkg.com/postcss/-/postcss-8.5.8.tgz"
+
+react@^18.2.0:
+  version "18.2.0"
+  resolved "https://registry.yarnpkg.com/react/-/react-18.2.0.tgz"
+`)
+
+	deps := parseNPM(dir)
+	assert.Len(t, deps, 2)
+	versions := make(map[string]string)
+	for _, d := range deps {
+		versions[d.Name] = d.Version
+	}
+	assert.Equal(t, "8.5.8", versions["postcss"], "should use yarn.lock version")
+	assert.Equal(t, "18.2.0", versions["react"])
+}
+
+func TestParseNPM_WithPnpmLock(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "package.json", `{
+		"dependencies": {
+			"postcss": "^8",
+			"next": "^14.2.0"
+		}
+	}`)
+	writeTestFile(t, dir, "pnpm-lock.yaml", `lockfileVersion: '6.0'
+
+dependencies:
+    postcss:
+      specifier: ^8
+      version: 8.5.8
+    next:
+      specifier: ^14.2.0
+      version: 14.2.35
+`)
+
+	deps := parseNPM(dir)
+	assert.Len(t, deps, 2)
+	versions := make(map[string]string)
+	for _, d := range deps {
+		versions[d.Name] = d.Version
+	}
+	assert.Equal(t, "8.5.8", versions["postcss"], "should use pnpm-lock.yaml version")
+	assert.Equal(t, "14.2.35", versions["next"])
+}
+
+func TestParseNPM_NoLockfile_SkipsBadVersions(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "package.json", `{
+		"dependencies": {
+			"postcss": "^8",
+			"next": "14.2.35",
+			"react": "^18"
+		}
+	}`)
+	// No lockfile — "^8" cleans to "8", "^18" cleans to "18" (not valid semver)
+
+	deps := parseNPM(dir)
+	// Only "next" with version "14.2.35" should survive the semver check
+	require.Len(t, deps, 1)
+	assert.Equal(t, "next", deps[0].Name)
+	assert.Equal(t, "14.2.35", deps[0].Version)
+}
+
+func TestLooksLikeSemver(t *testing.T) {
+	assert.True(t, looksLikeSemver("8.5.8"))
+	assert.True(t, looksLikeSemver("14.2.35"))
+	assert.True(t, looksLikeSemver("18.2"))
+	assert.True(t, looksLikeSemver("1.0.0-rc1"))
+	assert.False(t, looksLikeSemver("8"))
+	assert.False(t, looksLikeSemver("18"))
+	assert.False(t, looksLikeSemver(""))
+	assert.False(t, looksLikeSemver("latest"))
+}
+
 func TestParseDependencies_MultiEcosystem(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, dir, "package.json", `{"dependencies":{"express":"^4.18.0"}}`)
@@ -339,9 +473,9 @@ dependencies {
 // (internal/language/language.go) but have NO parsing implementation in
 // parser.go. Tests are intentionally omitted since there is no code to test:
 //
-// - package-lock.json: parseNPM only reads package.json, not the lockfile.
-// - yarn.lock: No parser exists.
-// - pnpm-lock.yaml: No parser exists.
+// - package-lock.json: parseNPM reads locked versions (v1/v2/v3).
+// - yarn.lock: parseNPM reads locked versions (classic v1 format).
+// - pnpm-lock.yaml: parseNPM reads locked versions (v6+ format).
 // - poetry.lock: No parser exists.
 // - Pipfile.lock: No parser exists.
 // - go.sum: parseGo only reads go.mod, not go.sum.

@@ -49,7 +49,7 @@ Every analyzer has unit tests with fixture inputs and expected outputs.
 
 - Mock registry responses with known publish dates; assert correct median age and unmaintained percentage `COVERED` — `TestAnalyzeHealth_BasicMetrics`, `_AllFresh`, `_AllUnmaintained`, `_SingleDep` in `health_test.go`
 - Dependency parsing unit tests per manifest format:
-  - JS/TS: `package.json` + `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml` `PARTIAL` — `package.json` covered (`TestParseNPM`); `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml` have NO parser implementation
+  - JS/TS: `package.json` + `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml` `COVERED` — `TestParseNPM`, `TestParseNPM_WithLockfile` (v2/v3), `TestParseNPM_LockfileV1`, `TestParseNPM_WithYarnLock`, `TestParseNPM_WithPnpmLock`, `TestParseNPM_NoLockfile_SkipsBadVersions`, `TestLooksLikeSemver`
   - Python: `requirements.txt`, `pyproject.toml` + `poetry.lock`, `Pipfile.lock` `PARTIAL` — `requirements.txt` + `pyproject.toml` covered; `poetry.lock`, `Pipfile.lock` have NO parser implementation
   - Go: `go.mod` + `go.sum` `PARTIAL` — `go.mod` covered (`TestParseGo`, `_SingleLineRequire`); `go.sum` has NO parser implementation
   - PHP: `composer.json` + `composer.lock` `PARTIAL` — `composer.json` covered (`TestParsePHP`); `composer.lock` has NO parser implementation
@@ -108,7 +108,7 @@ Every analyzer has unit tests with fixture inputs and expected outputs.
 **File Walker:** `MOSTLY COVERED`
 
 - Symlinks not followed: create fixture with symlink to parent directory (circular) → assert no infinite loop, symlink target not counted in LOC `COVERED` — `TestWalk_SymlinkNotFollowed` in `walker_test.go`
-- Default exclusion patterns: fixture with `node_modules/`, `vendor/`, `.git/`, `dist/`, `build/` directories containing source files → assert excluded files not analyzed, not counted in LOC `COVERED` — `TestWalk_ExcludesAllDefaultDirs` (all 11 default dirs: vendor, .git, dist, build, __pycache__, .venv, venv, out, .next, .nuxt, node_modules)
+- Default exclusion patterns: fixture with `node_modules/`, `vendor/`, `.git/`, `dist/`, `build/` directories containing source files → assert excluded files not analyzed, not counted in LOC `COVERED` — `TestWalk_ExcludesAllDefaultDirs` (all 14 default dirs: vendor, .git, dist, build, __pycache__, .venv, venv, out, .next, .nuxt, node_modules, coverage, .nyc_output, storybook-static)
 - Hidden files/dotfiles: `.eslintrc.js` should be detected (config), `.hidden_source.py` behavior documented `COVERED` — `TestWalk_DotfileConfigDetected`
 - Per-file AST parsing timeout: fixture with extremely large single file → assert timeout after 5s, file skipped with warning, scan continues `TODO` — no dedicated test for per-file AST timeout
 - Large file handling: files >10K LOC → assert warning emitted in `warnings` array `TODO` — no dedicated test for >10K LOC warning emission
