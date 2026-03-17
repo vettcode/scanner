@@ -108,6 +108,13 @@ var allowlistPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)example|placeholder|dummy|sample|your[_-]?`),
 	regexp.MustCompile(`(?i)TODO|FIXME|CHANGEME|REPLACE`),
 	regexp.MustCompile(`(?i)xxx+|yyy+|zzz+|aaa+`),
+	// Template variables / env references are not real secrets
+	regexp.MustCompile(`\{\{.*\.Env\..*\}\}`),           // Go template env: {{ .Env.TOKEN }}
+	regexp.MustCompile(`\$\{[A-Z_]+\}`),                 // Shell env: ${SECRET_KEY}
+	regexp.MustCompile(`\bos\.environ\b|\bos\.getenv\b`), // Python env lookups
+	regexp.MustCompile(`\bprocess\.env\b`),               // Node.js env lookups
+	// Regex/pattern definition lines (e.g., regexp.MustCompile, re.compile)
+	regexp.MustCompile(`(?i)regexp\.MustCompile|regexp\.Compile|re\.compile|new RegExp`),
 }
 
 // Scan scans files for hardcoded secrets.

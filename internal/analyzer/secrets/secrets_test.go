@@ -424,3 +424,28 @@ const awsKey = "AKIAIOSFODNN7ABCDEFG"
 	assert.Equal(t, "AWS Access Key", r.Findings[0].Name)
 	assert.Equal(t, "aws", r.Findings[0].Category)
 }
+
+func TestScan_SkipsRegexPatternDefinitions(t *testing.T) {
+	dir := t.TempDir()
+	// Pattern definition lines contain secret markers but are not real secrets
+	path := writeFile(t, dir, "detector.go", `package detector
+var pattern = regexp.MustCompile("-----BEGIN RSA PRIVATE KEY-----")
+var p2 = regexp.MustCompile("-----BEGIN EC PRIVATE KEY-----")
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "detector.go"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "regex pattern definitions should be allowlisted")
+}
+
+func TestScan_SkipsTemplateEnvVars(t *testing.T) {
+	dir := t.TempDir()
+	// Template variables referencing env vars are not real secrets
+	path := writeFile(t, dir, "release.yml", `
+      token: "{{ .Env.GITHUB_TOKEN }}"
+      secret_key: ${SECRET_KEY}
+      api_key: process.env.API_KEY
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "release.yml"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "template env var references should be allowlisted")
+}
