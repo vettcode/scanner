@@ -103,6 +103,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		allLicenseIssues    []models.LicenseIssue
 		allWarnings         []models.Warning
 		allHotspots         []models.HotspotFile
+		allSecretFindings   []models.SecretFinding
 		allFuncComplexities []int // for global P90 computation
 		globalTechStack     *techstack.Result
 		globalAIDetect      *aidetect.Result
@@ -176,6 +177,14 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 		// Secrets detection
 		secretsResult := secrets.Scan(wr.Files)
+		for _, f := range secretsResult.Findings {
+			allSecretFindings = append(allSecretFindings, models.SecretFinding{
+				Path:     f.RelPath,
+				Line:     f.Line,
+				Name:     f.Name,
+				Category: f.Category,
+			})
+		}
 
 		// Dependency parsing
 		depsResult := deps.ParseDependencies(repo.Path)
@@ -560,6 +569,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 			Security: &models.Security{
 				Grade:                &secGrade,
 				SecretsFound:         agg.SecretsCount,
+				SecretFindings:       allSecretFindings,
 				CVEs:                 allCVEs,
 				CVESummary:           cveSummary,
 				LicenseIssues:        allLicenseIssues,

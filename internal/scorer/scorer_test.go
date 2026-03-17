@@ -167,7 +167,9 @@ func TestScoreActivity_Active(t *testing.T) {
 		AvgCommitsPerMonth:  20,
 		ActiveMonths:        12,
 	})
-	assert.InDelta(t, 100.0, score, 0.01)
+	// recency = 100, velocity = min(100, 22*sqrt(20)) ≈ 98.39, consistency = 100
+	// 100*0.40 + 98.39*0.30 + 100*0.30 ≈ 99.52
+	assert.InDelta(t, 99.52, score, 0.1)
 }
 
 func TestScoreActivity_Stale(t *testing.T) {

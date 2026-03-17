@@ -115,10 +115,12 @@ type ActivityInput struct {
 }
 
 // ScoreActivity computes the development activity category score (0-100).
+// Velocity uses a diminishing-returns curve (22 * sqrt) so that mature projects
+// with 5-10 commits/month score well, while still rewarding higher velocity.
 func ScoreActivity(in ActivityInput) float64 {
-	recency := clamp(100 - float64(in.DaysSinceLastCommit)*0.55)        // 40%
-	velocity := clamp(float64(in.AvgCommitsPerMonth) * 5)               // 30%
-	consistency := clamp(float64(in.ActiveMonths) / 12.0 * 100)         // 30%
+	recency := clamp(100 - float64(in.DaysSinceLastCommit)*0.55)             // 40%
+	velocity := clamp(22 * math.Sqrt(float64(in.AvgCommitsPerMonth)))        // 30%
+	consistency := clamp(float64(in.ActiveMonths) / 12.0 * 100)              // 30%
 
 	return recency*0.40 + velocity*0.30 + consistency*0.30
 }

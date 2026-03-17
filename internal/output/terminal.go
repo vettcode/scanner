@@ -145,6 +145,14 @@ func (f *TerminalFormatter) formatSecurity(w io.Writer, s *models.Security) {
 		secretsStr = c.red(secretsStr)
 	}
 	fmt.Fprintf(w, "  Secrets Found:         %s\n", secretsStr)
+	for i, sf := range s.SecretFindings {
+		if i >= 5 {
+			remaining := len(s.SecretFindings) - 5
+			fmt.Fprintf(w, "    ... and %d more\n", remaining)
+			break
+		}
+		fmt.Fprintf(w, "    %d. %s:%d  %s\n", i+1, sf.Path, sf.Line, c.red(sf.Name))
+	}
 
 	totalCVEs := s.CVESummary.Critical + s.CVESummary.High + s.CVESummary.Medium + s.CVESummary.Low
 	if totalCVEs > 0 {

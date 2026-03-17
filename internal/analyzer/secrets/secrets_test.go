@@ -348,3 +348,55 @@ func TestScan_GitHubAppToken(t *testing.T) {
 	r := Scan(files)
 	assert.GreaterOrEqual(t, r.SecretsCount, 1, "GitHub App token should be detected")
 }
+
+func TestScan_SkipsExampleDirs(t *testing.T) {
+	dir := t.TempDir()
+	// Secrets in examples/ directories should be skipped (demo code, not production)
+	path := writeFile(t, dir, "examples/auth/index.js",
+		`const session = { secret: 'realPassword!2024' }`)
+	files := []walker.FileInfo{{Path: path, RelPath: "examples/auth/index.js"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "examples/ directory should be skipped")
+}
+
+func TestScan_NoFalsePositives_NaturalLanguagePhrases(t *testing.T) {
+	dir := t.TempDir()
+	// Phrases with spaces (like "keyboard cat") are not real secrets
+	path := writeFile(t, dir, "app.js", `
+const session = { secret: "keyboard cat" }
+app.use(cookieSession({ secret: "shhhh, very secret" }))
+var config = { password: "some password here" }
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "app.js"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount,
+		"natural language phrases with spaces should not be flagged as secrets")
+}
+
+func TestScan_StillDetectsRealGenericSecrets(t *testing.T) {
+	dir := t.TempDir()
+	// Real passwords without spaces should still be caught
+	path := writeFile(t, dir, "config.go", `
+var password = "realPassword!2024"
+var secret = "aB3$kL9pQ2wX7mR5n"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "config.go"}}
+	r := Scan(files)
+	assert.GreaterOrEqual(t, r.SecretsCount, 1,
+		"real secrets without spaces should still be detected")
+}
+
+func TestScan_FindingsHaveLocation(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "config.go", `package config
+const awsKey = "AKIAIOSFODNN7ABCDEFG"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "config.go"}}
+	r := Scan(files)
+	require.Equal(t, 1, r.SecretsCount)
+	require.Len(t, r.Findings, 1)
+	assert.Equal(t, "config.go", r.Findings[0].RelPath)
+	assert.Equal(t, 2, r.Findings[0].Line)
+	assert.Equal(t, "AWS Access Key", r.Findings[0].Name)
+	assert.Equal(t, "aws", r.Findings[0].Category)
+}

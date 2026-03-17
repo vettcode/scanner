@@ -118,7 +118,7 @@ func isTestFile(path string, lang string) bool {
 			return true
 		}
 		for _, p := range parts {
-			if p == "__tests__" {
+			if p == "__tests__" || p == "test" || p == "tests" {
 				return true
 			}
 		}

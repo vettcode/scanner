@@ -86,14 +86,24 @@ type HotspotFile struct {
 
 // Security metrics.
 type Security struct {
-	Grade                *Grade         `json:"grade"`
-	SecretsFound         int            `json:"secrets_found"`
-	CVEs                 []CVE          `json:"cves"`
-	CVESummary           CVESummary     `json:"cve_summary"`
-	OutdatedDeps         OutdatedDeps   `json:"outdated_deps"`
-	LicenseIssues        []LicenseIssue `json:"license_issues"`
-	LicenseIssueCount    int            `json:"license_issue_count"`
-	CVEEcosystemsSkipped []string       `json:"cve_ecosystems_skipped"`
+	Grade                *Grade           `json:"grade"`
+	SecretsFound         int              `json:"secrets_found"`
+	SecretFindings       []SecretFinding  `json:"-"` // terminal display only, never in JSON
+	CVEs                 []CVE            `json:"cves"`
+	CVESummary           CVESummary       `json:"cve_summary"`
+	OutdatedDeps         OutdatedDeps     `json:"outdated_deps"`
+	LicenseIssues        []LicenseIssue   `json:"license_issues"`
+	LicenseIssueCount    int              `json:"license_issue_count"`
+	CVEEcosystemsSkipped []string         `json:"cve_ecosystems_skipped"`
+}
+
+// SecretFinding represents a detected secret for terminal display.
+type SecretFinding struct {
+	// Path is the real file path, used only for terminal display (never serialized to JSON).
+	Path     string `json:"-"`
+	Line     int    `json:"-"`
+	Name     string `json:"-"`
+	Category string `json:"-"`
 }
 
 // CVE represents a known vulnerability.

@@ -10,11 +10,21 @@ import (
 	"github.com/vettcode/scanner/internal/walker"
 )
 
+// Finding represents a single detected secret with its location.
+type Finding struct {
+	Path     string // file path (for terminal display only, never in JSON)
+	RelPath  string // relative path
+	Line     int    // line number
+	Name     string // pattern name (e.g., "AWS Access Key")
+	Category string // category (e.g., "aws", "api_key", "private_key")
+}
+
 // Result holds the secrets detection results.
 type Result struct {
-	SecretsCount    int
-	FileCount       int // number of files with secrets
-	ByCategory      map[string]int
+	SecretsCount int
+	FileCount    int // number of files with secrets
+	ByCategory   map[string]int
+	Findings     []Finding
 }
 
 // SecretPattern defines a regex-based secret detection rule.
@@ -84,11 +94,12 @@ var patterns = []SecretPattern{
 	{Name: "Bearer Token", Category: "token", Pattern: regexp.MustCompile(`(?i)bearer\s+[a-zA-Z0-9_\-.]{20,}`)},
 }
 
-// testFilePatterns are file patterns that indicate test/fixture files.
+// testFilePatterns are file patterns that indicate test/fixture/example files.
 var testFilePatterns = []string{
 	"_test.", ".test.", ".spec.", "__tests__",
 	"test_", "tests/", "fixtures/", "testdata/",
 	"mock", "fake", "stub",
+	"examples/", "example/",
 }
 
 // allowlistPatterns are patterns that indicate false positives.
@@ -109,12 +120,13 @@ func Scan(files []walker.FileInfo) *Result {
 			continue
 		}
 
-		categories := scanFile(f.Path)
-		if len(categories) > 0 {
+		findings := scanFile(f.Path, f.RelPath)
+		if len(findings) > 0 {
 			r.FileCount++
-			for _, cat := range categories {
+			for _, finding := range findings {
 				r.SecretsCount++
-				r.ByCategory[cat]++
+				r.ByCategory[finding.Category]++
+				r.Findings = append(r.Findings, finding)
 			}
 		}
 	}
@@ -122,15 +134,15 @@ func Scan(files []walker.FileInfo) *Result {
 	return r
 }
 
-// scanFile returns the categories of secrets found (one per detected secret).
-func scanFile(path string) []string {
+// scanFile returns the findings for secrets detected in the file.
+func scanFile(path, relPath string) []Finding {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil
 	}
 	defer f.Close()
 
-	var categories []string
+	var findings []Finding
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
@@ -142,18 +154,40 @@ func scanFile(path string) []string {
 		patternMatched := false
 		for _, p := range patterns {
 			if p.Pattern.MatchString(line) {
-				if !isAllowlisted(line) {
-					categories = append(categories, p.Category)
-					patternMatched = true
-					break // one secret per line max
+				if isAllowlisted(line) {
+					continue
 				}
+				// For generic secrets, filter out natural language phrases
+				// (e.g., secret: "keyboard cat"). Real secrets don't have spaces.
+				if p.Category == "generic" {
+					if m := genericSecretValuePattern.FindStringSubmatch(line); len(m) >= 3 {
+						if isNaturalLanguage(m[2]) {
+							continue
+						}
+					}
+				}
+				findings = append(findings, Finding{
+					Path:     path,
+					RelPath:  relPath,
+					Line:     lineNum,
+					Name:     p.Name,
+					Category: p.Category,
+				})
+				patternMatched = true
+				break // one secret per line max
 			}
 		}
 
 		// Shannon entropy check for high-entropy strings not caught by patterns
 		if !patternMatched {
 			if hasHighEntropySecret(line) {
-				categories = append(categories, "entropy")
+				findings = append(findings, Finding{
+					Path:     path,
+					RelPath:  relPath,
+					Line:     lineNum,
+					Name:     "High-Entropy Secret",
+					Category: "entropy",
+				})
 			}
 		}
 	}
@@ -162,11 +196,21 @@ func scanFile(path string) []string {
 		// Partial results are still returned
 	}
 
-	return categories
+	return findings
 }
+
+// genericSecretValuePattern extracts the value from a generic secret assignment.
+var genericSecretValuePattern = regexp.MustCompile(`(?i)(password|passwd|pwd|secret|api_key|apikey|api_secret|access_token|auth_token|private_key)\s*[=:]\s*["']([^"']{8,})["']`)
 
 // assignPattern matches assignment patterns with potential secret values.
 var assignPattern = regexp.MustCompile(`(?i)(key|token|secret|password|credential)\s*[=:]\s*["']([^"']{16,})["']`)
+
+// isNaturalLanguage returns true if the value looks like a human-readable phrase
+// rather than a real secret. Real secrets (API keys, tokens, passwords) don't
+// contain spaces; values like "keyboard cat" or "shhhh, very secret" do.
+func isNaturalLanguage(s string) bool {
+	return strings.Contains(s, " ")
+}
 
 // hasHighEntropySecret checks for high-entropy strings that look like secrets.
 func hasHighEntropySecret(line string) bool {

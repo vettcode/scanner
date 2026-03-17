@@ -82,6 +82,8 @@ func TestClassifyFile(t *testing.T) {
 		{"src/app.js", "JavaScript", Tier1, false, false},
 		{"src/app.test.js", "JavaScript", Tier1, true, false},
 		{"src/__tests__/app.js", "JavaScript", Tier1, true, false},
+		{"test/app.js", "JavaScript", Tier1, true, false},
+		{"tests/integration/helpers.js", "JavaScript", Tier1, true, false},
 		{"src/app.spec.ts", "TypeScript", Tier1, true, false},
 		{"src/main.py", "Python", Tier1, false, false},
 		{"tests/test_main.py", "Python", Tier1, true, false},
