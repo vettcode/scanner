@@ -97,9 +97,10 @@ var patterns = []SecretPattern{
 // testFilePatterns are file patterns that indicate test/fixture/example files.
 var testFilePatterns = []string{
 	"_test.", ".test.", ".spec.", "__tests__",
-	"test_", "tests/", "fixtures/", "testdata/",
+	"test_", "test/", "tests/", "fixtures/", "testdata/",
 	"mock", "fake", "stub",
 	"examples/", "example/",
+	"readme",
 }
 
 // allowlistPatterns are patterns that indicate false positives.

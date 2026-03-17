@@ -359,6 +359,30 @@ func TestScan_SkipsExampleDirs(t *testing.T) {
 	assert.Equal(t, 0, r.SecretsCount, "examples/ directory should be skipped")
 }
 
+func TestScan_SkipsTestDirSingular(t *testing.T) {
+	dir := t.TempDir()
+	// Secrets in test/ (singular) directories should be skipped
+	path := writeFile(t, dir, "test/unit/config.js",
+		`const auth = { password: 's00pers3cret' }`)
+	files := []walker.FileInfo{{Path: path, RelPath: "test/unit/config.js"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "test/ directory should be skipped")
+}
+
+func TestScan_SkipsReadmeFiles(t *testing.T) {
+	dir := t.TempDir()
+	// READMEs contain documentation examples, not real secrets
+	path := writeFile(t, dir, "README.md", `
+  auth: {
+    username: 'janedoe',
+    password: 's00pers3cret'
+  },
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "README.md"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "README files should be skipped")
+}
+
 func TestScan_NoFalsePositives_NaturalLanguagePhrases(t *testing.T) {
 	dir := t.TempDir()
 	// Phrases with spaces (like "keyboard cat") are not real secrets
