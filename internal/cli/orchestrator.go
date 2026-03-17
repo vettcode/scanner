@@ -400,6 +400,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 			DaysSinceLastCommit: agg.DaysSinceLastCommit,
 			AvgCommitsPerMonth:  agg.AvgCommitsPerMonth,
 			ActiveMonths:        agg.ActiveMonths,
+			RepoAgeMonths:       globalActivity.RepoAgeMonths,
 		})
 		actGrade := scorer.ScoreToGrade(actScore)
 

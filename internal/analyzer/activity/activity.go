@@ -12,9 +12,10 @@ import (
 type Result struct {
 	LastCommitDate     *time.Time
 	DaysSinceLastCommit int
-	CommitVelocity     float64   // avg commits/month over last 12 months
+	CommitVelocity     float64   // avg commits/month over the repo's active window (up to 12)
 	MonthlyCommits     [12]int   // commits per month, index 0 = most recent month
 	ActiveMonths       int       // months with >0 commits in last 12
+	RepoAgeMonths      int       // months since first commit (capped at 12)
 	Trend              string    // "increasing", "stable", "declining"
 	ContributorCount   int
 	TotalCommits       int       // total commits in last 12 months
@@ -76,8 +77,24 @@ func Analyze(root string) *Result {
 		}
 	}
 
+	// Repo age: months since first commit (capped at 12)
+	r.RepoAgeMonths = 12
+	if firstDateStr, err := gitCmd(root, "log", "--reverse", "--format=%aI", "--max-count=1"); err == nil {
+		firstDateStr = strings.TrimSpace(firstDateStr)
+		if ft, err := time.Parse(time.RFC3339, firstDateStr); err == nil {
+			ageMonths := int(now.Sub(ft).Hours() / 24 / 30)
+			if ageMonths < 1 {
+				ageMonths = 1
+			}
+			if ageMonths > 12 {
+				ageMonths = 12
+			}
+			r.RepoAgeMonths = ageMonths
+		}
+	}
+
 	if r.ActiveMonths > 0 {
-		r.CommitVelocity = float64(r.TotalCommits) / 12.0
+		r.CommitVelocity = float64(r.TotalCommits) / float64(r.RepoAgeMonths)
 	}
 
 	// Trend: compare first half vs second half of the 12-month window

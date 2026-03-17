@@ -152,10 +152,12 @@ The **overall grade** uses the same mapping applied to the weighted average of a
 | Sub-metric | Weight | Formula | Thresholds |
 | --- | --- | --- | --- |
 | Recency | 40% | `max(0, 100 - days_since_last_commit * 0.55)` | 0 days → 100, 30 days → 83, 90 days → 50, 180 days → 0 |
-| Velocity | 30% | `min(100, 22 * sqrt(avg_commits_per_month))` | 5/mo → 49, 7/mo → 58, 10/mo → 70, 20/mo → 98 |
-| Consistency | 30% | `(active_months / 12) * 100` | 12/12 → 100, 9/12 → 75, 6/12 → 50 |
+| Velocity | 30% | `min(100, 22 * sqrt(total_commits / min(12, repo_age_months)))` | 5/mo → 49, 7/mo → 58, 10/mo → 70, 20/mo → 98 |
+| Consistency | 30% | `(active_months / min(12, repo_age_months)) * 100` | All months active → 100, half → 50 |
 
 **Why these thresholds:** A commit within the last 30 days signals active maintenance. Velocity uses a **diminishing-returns curve** (`22 * sqrt`) so that mature projects with 5–10 commits/month score reasonably (49–70), while still rewarding higher velocity without requiring an unrealistic 20 commits/month for a perfect score. Consistency matters more than bursts — a codebase with 6 idle months raises transfer risk.
+
+**Repo age scaling:** Both velocity and consistency are computed over `min(12, repo_age_months)` rather than a fixed 12-month window. A 2-month-old project with 2 active months gets 100% consistency, not 17% (2/12). This prevents new projects from being penalized for not having existed long enough. Repo age is determined from the first commit date.
 
 **Note:** Contributor count is shown as raw data but NOT scored. A solo founder's codebase can be perfectly healthy.
 

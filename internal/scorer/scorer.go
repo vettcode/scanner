@@ -111,16 +111,25 @@ func ScoreDependencyHealth(in DependencyHealthInput) float64 {
 type ActivityInput struct {
 	DaysSinceLastCommit int
 	AvgCommitsPerMonth  float64
-	ActiveMonths        int // out of 12
+	ActiveMonths        int // months with commits in the observation window
+	RepoAgeMonths       int // months since first commit (capped at 12)
 }
 
 // ScoreActivity computes the development activity category score (0-100).
 // Velocity uses a diminishing-returns curve (22 * sqrt) so that mature projects
 // with 5-10 commits/month score well, while still rewarding higher velocity.
+// Consistency is scaled by repo age so new projects aren't penalized for not
+// existing for 12 months yet.
 func ScoreActivity(in ActivityInput) float64 {
 	recency := clamp(100 - float64(in.DaysSinceLastCommit)*0.55)             // 40%
 	velocity := clamp(22 * math.Sqrt(float64(in.AvgCommitsPerMonth)))        // 30%
-	consistency := clamp(float64(in.ActiveMonths) / 12.0 * 100)              // 30%
+
+	// Scale consistency by repo age: a 1-month-old repo with 1 active month = 100%
+	window := 12
+	if in.RepoAgeMonths > 0 && in.RepoAgeMonths < 12 {
+		window = in.RepoAgeMonths
+	}
+	consistency := clamp(float64(in.ActiveMonths) / float64(window) * 100)   // 30%
 
 	return recency*0.40 + velocity*0.30 + consistency*0.30
 }

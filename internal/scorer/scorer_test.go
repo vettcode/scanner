@@ -166,8 +166,9 @@ func TestScoreActivity_Active(t *testing.T) {
 		DaysSinceLastCommit: 0,
 		AvgCommitsPerMonth:  20,
 		ActiveMonths:        12,
+		RepoAgeMonths:       12,
 	})
-	// recency = 100, velocity = min(100, 22*sqrt(20)) ≈ 98.39, consistency = 100
+	// recency = 100, velocity = min(100, 22*sqrt(20)) ≈ 98.39, consistency = 12/12 = 100
 	// 100*0.40 + 98.39*0.30 + 100*0.30 ≈ 99.52
 	assert.InDelta(t, 99.52, score, 0.1)
 }
@@ -177,12 +178,26 @@ func TestScoreActivity_Stale(t *testing.T) {
 		DaysSinceLastCommit: 180,
 		AvgCommitsPerMonth:  0,
 		ActiveMonths:        3,
+		RepoAgeMonths:       12,
 	})
 	// recency = max(0, 100 - 180*0.55) = max(0, 1.0) = 1.0
 	// velocity = 0
 	// consistency = 3/12*100 = 25
 	// 1.0*0.40 + 0*0.30 + 25*0.30 = 0.4+0+7.5 = 7.9
 	assert.InDelta(t, 7.9, score, 0.01)
+}
+
+func TestScoreActivity_NewProject(t *testing.T) {
+	// A 1-month-old project with 1 active month should get 100% consistency
+	score := ScoreActivity(ActivityInput{
+		DaysSinceLastCommit: 0,
+		AvgCommitsPerMonth:  6,
+		ActiveMonths:        1,
+		RepoAgeMonths:       1,
+	})
+	// recency = 100, velocity = 22*sqrt(6) ≈ 53.9, consistency = 1/1 = 100
+	// 100*0.40 + 53.9*0.30 + 100*0.30 = 40 + 16.17 + 30 = 86.17
+	assert.InDelta(t, 86.17, score, 0.5)
 }
 
 // --- Infrastructure scorer tests ---
