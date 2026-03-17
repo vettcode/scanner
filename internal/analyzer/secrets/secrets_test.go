@@ -187,6 +187,35 @@ var token = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 	assert.Equal(t, 0, r.SecretsCount, "placeholder/example values should be filtered by allowlist")
 }
 
+func TestScan_NoFalsePositives_SnakeCaseIdentifiers(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "config.go", `package config
+
+// Snake_case and kebab-case identifiers are feature flags / config keys, not secrets
+const legacyKey = "legacy_cloud_anthropic_web_search"
+const featureToken = "enable_dark_mode_beta_v2"
+const credentialName = "oauth-client-credential-grant"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "config.go"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "snake_case/kebab-case identifiers should not be flagged as high-entropy secrets")
+}
+
+func TestSnakeCaseIdentifier(t *testing.T) {
+	// Should match: multi-word lowercase identifiers
+	assert.True(t, snakeCaseIdentifier.MatchString("legacy_cloud_anthropic_web_search"))
+	assert.True(t, snakeCaseIdentifier.MatchString("enable_dark_mode"))
+	assert.True(t, snakeCaseIdentifier.MatchString("oauth-client-credential"))
+	assert.True(t, snakeCaseIdentifier.MatchString("feature_flag_v2"))
+
+	// Should NOT match: real secrets or single words
+	assert.False(t, snakeCaseIdentifier.MatchString("aB3cD4eF5gH6iJ7k"))  // mixed case
+	assert.False(t, snakeCaseIdentifier.MatchString("singleword"))          // no separator
+	assert.False(t, snakeCaseIdentifier.MatchString("HAS_UPPER_CASE"))      // uppercase
+	assert.False(t, snakeCaseIdentifier.MatchString("sk_live_abc123XYZ"))   // mixed case (real key)
+	assert.False(t, snakeCaseIdentifier.MatchString(""))                    // empty
+}
+
 func TestScan_GenericSecret_HardcodedPassword(t *testing.T) {
 	dir := t.TempDir()
 	path := writeFile(t, dir, "db.go", `package db

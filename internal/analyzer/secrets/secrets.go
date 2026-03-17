@@ -227,6 +227,11 @@ func isNaturalLanguage(s string) bool {
 	return strings.Contains(s, " ")
 }
 
+// snakeCaseIdentifier matches values that are purely lowercase letters,
+// digits, underscores, and hyphens — feature flag names, config keys, etc.
+// These are never real secrets even if entropy is borderline high.
+var snakeCaseIdentifier = regexp.MustCompile(`^[a-z][a-z0-9]*([_-][a-z0-9]+)+$`)
+
 // hasHighEntropySecret checks for high-entropy strings that look like secrets.
 func hasHighEntropySecret(line string) bool {
 	// Look for assignment patterns with high-entropy values
@@ -237,6 +242,11 @@ func hasHighEntropySecret(line string) bool {
 
 	value := matches[2]
 	if isAllowlisted(value) {
+		return false
+	}
+
+	// Snake_case or kebab-case identifiers are config keys, not secrets.
+	if snakeCaseIdentifier.MatchString(value) {
 		return false
 	}
 

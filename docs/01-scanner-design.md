@@ -643,11 +643,14 @@ Runs after scoring. Evaluates threshold conditions against aggregated results. E
 - Compute Shannon entropy of candidate strings
 - Threshold: entropy > 4.5 for hex strings, > 4.0 for base64 strings (calibrated to reduce false positives)
 - Minimum string length: 16 characters
+- Snake_case / kebab-case identifiers (e.g., `legacy_cloud_feature_flag`) are excluded — these are config keys, not secrets
 
 **Layer 3 -- Allowlist filtering:**
 
 - Exclude known false positives: example values in docs, test fixtures, placeholder strings
-- Exclude files matching common test/fixture patterns
+- Exclude files matching common test/fixture patterns (`tests/`, `docs/`, `doc/`, `readme`, `examples/`, etc.)
+- Exclude template variable references: `${{ secrets.* }}` (GitHub Actions), `{{ .Env.* }}` (Go templates), `${VAR}` (shell), `process.env.*` (Node.js), `os.environ` (Python)
+- Exclude regex pattern definition lines (all Tier 1 languages) to prevent the scanner from flagging its own patterns
 
 **Output:** Count only in the **JSON output** — no file names, line numbers, or secret content. The **terminal output** shows file paths where secrets were detected (e.g., `src/config.ts: 2 potential secrets`) so the seller can locate and remove them before rescanning. Secret values are never shown in either output.
 
