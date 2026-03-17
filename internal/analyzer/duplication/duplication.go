@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/vettcode/scanner/internal/exclusion"
 	"github.com/vettcode/scanner/internal/walker"
 )
 
@@ -50,7 +51,7 @@ func Analyze(files []walker.FileInfo, tokenStreams ...map[string][]Token) *Resul
 	totalLOC := 0
 	var nonTestFiles []walker.FileInfo
 	for _, f := range files {
-		if f.IsTest {
+		if f.IsTest || exclusion.IsAuxiliaryPath(f.RelPath) {
 			continue
 		}
 		totalLOC += f.LOC

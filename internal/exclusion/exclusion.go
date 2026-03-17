@@ -22,6 +22,20 @@ var DefaultExcludedDirs = map[string]bool{
 	".nuxt":        true,
 }
 
+// AuxiliaryDirPatterns are directory names that contain non-production code
+// (scripts, demos, tooling). Files in these dirs are still walked for language
+// detection and LOC, but are excluded from quality metrics like duplication.
+var AuxiliaryDirPatterns = map[string]bool{
+	"examples": true,
+	"example":  true,
+	"sandbox":  true,
+	"bin":      true,
+	"scripts":  true,
+	"tools":    true,
+	"docs":     true,
+	"doc":      true,
+}
+
 // DefaultExcludedExtensions are file extensions always excluded.
 var DefaultExcludedExtensions = map[string]bool{
 	".min.js":    true,
@@ -43,6 +57,18 @@ var generatedMarkers = []string{
 // ShouldExcludeDir returns true if the directory name should be excluded.
 func ShouldExcludeDir(name string) bool {
 	return DefaultExcludedDirs[name]
+}
+
+// IsAuxiliaryPath returns true if the file path is under an auxiliary
+// (non-production) directory like examples/, bin/, sandbox/, docs/.
+func IsAuxiliaryPath(relPath string) bool {
+	parts := strings.Split(filepath.ToSlash(relPath), "/")
+	for _, p := range parts {
+		if AuxiliaryDirPatterns[p] {
+			return true
+		}
+	}
+	return false
 }
 
 // ShouldExcludeFile returns true if the file should be excluded based on

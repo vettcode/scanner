@@ -28,6 +28,7 @@ import (
 	"github.com/vettcode/scanner/internal/analyzer/security"
 	"github.com/vettcode/scanner/internal/analyzer/techstack"
 	"github.com/vettcode/scanner/internal/config"
+	"github.com/vettcode/scanner/internal/exclusion"
 	"github.com/vettcode/scanner/internal/language"
 	"github.com/vettcode/scanner/internal/output"
 	"github.com/vettcode/scanner/internal/scorer"
@@ -133,7 +134,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		tokenStreams := make(map[string][]duplication.Token)
 
 		for _, f := range wr.Files {
-			if f.IsTest || f.Tier != language.Tier1 {
+			if f.IsTest || f.Tier != language.Tier1 || exclusion.IsAuxiliaryPath(f.RelPath) {
 				continue
 			}
 			cr, err := complexity.AnalyzeFile(f.Path, f.Language)
