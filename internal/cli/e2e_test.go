@@ -398,7 +398,7 @@ func TestCLI_CIModePass(t *testing.T) {
 }
 
 func TestCLI_CIModeFailGrade(t *testing.T) {
-	fixture := testdata.FixturePath(testdata.HealthySaas)
+	fixture := testdata.FixturePath(testdata.NeglectedProject)
 	tmpOut := filepath.Join(t.TempDir(), "scan.json")
 	_, err := execCLI(t, "scan", fixture, "--offline", "--ci", "--ci-threshold", "A", "--format", "json", "-q", "-o", tmpOut)
 	require.Error(t, err, "CI mode should fail when threshold is A and grade is lower")

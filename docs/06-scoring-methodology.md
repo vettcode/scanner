@@ -176,11 +176,11 @@ The **overall grade** uses the same mapping applied to the weighted average of a
 
 | Sub-metric | Weight | Formula | Thresholds |
 | --- | --- | --- | --- |
-| IaC | 35% | `100 if detected else 0` | Binary |
-| CI/CD | 40% | `100 if detected else 0` | Binary |
-| Monitoring | 25% | `100 if detected else 0` | Binary |
+| IaC | 40% | `100 if detected else 0` | Binary |
+| CI/CD | 45% | `100 if detected else 0` | Binary |
+| Monitoring | 15% | `100 if detected else 0` | Binary |
 
-**Why these weights:** CI/CD is weighted highest because it directly affects deployment safety and velocity post-acquisition. IaC is next because it determines infrastructure reproducibility. Monitoring is weighted lowest because it's the easiest to add post-acquisition.
+**Why these weights:** CI/CD is weighted highest because it directly affects deployment safety and velocity post-acquisition. IaC is next because it determines infrastructure reproducibility. Monitoring is weighted lowest (15%) because it's the easiest to add post-acquisition and is often configured at deployment time rather than embedded in source code — penalizing its absence heavily would unfairly downgrade projects that have solid IaC + CI/CD.
 
 **Why binary scoring:** These are foundational operational practices. Having Terraform is fundamentally different from not having Terraform — there's no meaningful gradient. The presence check is based on file/config detection (Dockerfile, .github/workflows, terraform files, monitoring SDK imports).
 

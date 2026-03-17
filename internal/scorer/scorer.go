@@ -156,5 +156,5 @@ func ScoreInfra(in InfraInput) float64 {
 		monitoring = 100
 	}
 
-	return iac*0.35 + cicd*0.40 + monitoring*0.25
+	return iac*0.40 + cicd*0.45 + monitoring*0.15
 }

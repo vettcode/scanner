@@ -28,9 +28,9 @@
     "security_grade": "A",
     "handoff_score": 79.7196261682243,
     "handoff_grade": "C+",
-    "infra_score": 75,
-    "infra_grade": "C",
-    "overall_score": 91.25856697819314,
+    "infra_score": 85,
+    "infra_grade": "B",
+    "overall_score": 92.59190031152649,
     "overall_grade": "A-",
     "red_flag_count": 1,
     "red_flag_codes": [

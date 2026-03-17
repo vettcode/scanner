@@ -92,6 +92,26 @@ var fineTuningPatterns = []string{
 	"train", "training",
 }
 
+// llmDirPatterns are directory names that indicate a project implements
+// LLM functionality (as opposed to merely consuming an LLM API).
+var llmDirPatterns = map[string]string{
+	"llm":       "LLM (native)",
+	"llama":     "LLM (native)",
+	"inference": "LLM (native)",
+	"tokenizer": "LLM (native)",
+}
+
+// vectorDBDirPatterns are directory names that indicate vector DB implementation.
+var vectorDBDirPatterns = map[string]string{
+	"embedding":  "Embeddings (native)",
+	"embeddings": "Embeddings (native)",
+}
+
+// mcpDirPatterns are directory names that indicate MCP implementation.
+var mcpDirPatterns = []string{
+	"mcp",
+}
+
 // dataPipelineDeps maps dependency names to data pipeline frameworks.
 var dataPipelineDeps = map[string]bool{
 	"airflow":     true,
@@ -142,16 +162,51 @@ func Detect(deps []string, files []walker.FileInfo) *Result {
 		}
 	}
 
-	// File pattern matching for fine-tuning
+	// File and directory pattern matching
+	dirsSeen := make(map[string]bool)
 	for _, f := range files {
 		baseLower := strings.ToLower(filepath.Base(f.Path))
-		for _, pat := range fineTuningPatterns {
-			if strings.Contains(baseLower, pat) {
-				r.HasFineTuning = true
-				break
+
+		// Fine-tuning file patterns
+		if !r.HasFineTuning {
+			for _, pat := range fineTuningPatterns {
+				if strings.Contains(baseLower, pat) {
+					r.HasFineTuning = true
+					break
+				}
 			}
 		}
-		if r.HasFineTuning {
+
+		// Collect unique directory names from the file path
+		dir := filepath.Dir(f.Path)
+		for dir != "." && dir != "/" && dir != "" {
+			name := strings.ToLower(filepath.Base(dir))
+			if dirsSeen[name] {
+				break
+			}
+			dirsSeen[name] = true
+			dir = filepath.Dir(dir)
+		}
+	}
+
+	// Directory-based LLM detection (native implementations)
+	for dirName := range dirsSeen {
+		if provider, ok := llmDirPatterns[dirName]; ok {
+			llmSet[provider] = true
+		}
+	}
+
+	// Directory-based vector DB / embeddings detection
+	for dirName := range dirsSeen {
+		if provider, ok := vectorDBDirPatterns[dirName]; ok {
+			vecSet[provider] = true
+		}
+	}
+
+	// Directory-based MCP detection
+	for _, pat := range mcpDirPatterns {
+		if dirsSeen[pat] {
+			r.HasMCP = true
 			break
 		}
 	}

@@ -688,12 +688,17 @@ Runs after scoring. Evaluates threshold conditions against aggregated results. E
 | Category | Detection Method | Example Matches |
 | --- | --- | --- |
 | LLM API | Dependency name matching | `openai`, `anthropic`, `cohere`, `google-generativeai`, `langchain`, `llama-index` |
+| LLM API | Directory name matching | Directories named `llm/`, `llama/`, `inference/`, `tokenizer/` → "LLM (native)" |
 | Vector DB | Dependency name matching | `pinecone-client`, `weaviate-client`, `chromadb`, `qdrant-client`, `pgvector` |
-| RAG Pipeline | Combination signal | Vector DB + LLM API + document loader patterns (e.g., `langchain.document_loaders`) |
+| Vector DB | Directory name matching | Directories named `embedding/`, `embeddings/` → "Embeddings (native)" |
+| RAG Pipeline | Combination signal | Vector DB + LLM API (from deps or directories) |
 | MCP | Dependency/config matching | `@modelcontextprotocol/sdk`, `mcp` in config files |
+| MCP | Directory name matching | Directories named `mcp/` |
 | Fine-tuning | File pattern matching | Files matching `*fine*tune*`, `*train*`, wandb/mlflow configs |
 | Training Pipeline | Import pattern matching | `torch`, `tensorflow`, `transformers.Trainer`, `datasets` library |
 | Proprietary Data | Pattern matching | ETL frameworks (`airflow`, `prefect`, `dagster`), custom data loading patterns, `pandas` + file I/O patterns |
+
+**Directory-based detection** catches projects that *implement* AI functionality natively (e.g., ollama, vLLM) rather than merely consuming AI APIs via dependencies. The walked file list provides directory names without any extra I/O.
 
 **Implementation:** Each detection rule is a struct with:
 
@@ -1802,12 +1807,14 @@ Dependency-based and import-based patterns for detecting AI/ML capabilities, mai
 | Capability | Detection method | Examples |
 | --- | --- | --- |
 | LLM API usage | Dependency manifest match | `openai`, `anthropic`, `cohere`, `langchain`, `llamaindex` (npm, PyPI, Go) |
+| LLM (native) | Directory name match | Directories: `llm/`, `llama/`, `inference/`, `tokenizer/` |
 | Vector databases | Dependency manifest match | `pinecone`, `chromadb`, `weaviate`, `qdrant`, `pymilvus` |
-| MCP integration | Dependency + file pattern match | `@modelcontextprotocol/sdk`, `mcp.json` |
+| Embeddings (native) | Directory name match | Directories: `embedding/`, `embeddings/` |
+| MCP integration | Dependency + dir match | `@modelcontextprotocol/sdk`, `mcp.json`, `mcp/` directory |
 | Training pipelines | Dependency manifest match | `torch`, `tensorflow`, `transformers`, `wandb`, `mlflow` |
 | Proprietary data ETL | Dependency + import pattern match | `airflow`, `dagster`, `dbt-core`, `pandas.read_*`, `spark.read.*` |
 
-> Implementation: see `internal/analyze/detection/ai_patterns.yaml` in the scanner repo.
+> Implementation: see `internal/analyzer/aidetect/aidetect.go` in the scanner repo.
 
 ## Appendix C: Scoring Function Reference
 

@@ -65,6 +65,60 @@ func TestDetect_ProprietaryData(t *testing.T) {
 	assert.True(t, r.HasProprietaryData)
 }
 
+func TestDetect_LLMDirPatterns(t *testing.T) {
+	files := []walker.FileInfo{
+		{Path: "/project/llm/server.go"},
+		{Path: "/project/tokenizer/bpe.go"},
+	}
+	r := Detect(nil, files)
+	assert.True(t, r.HasLLMAPI)
+	assert.Contains(t, r.LLMProviders, "LLM (native)")
+}
+
+func TestDetect_VectorDBDirPatterns(t *testing.T) {
+	files := []walker.FileInfo{
+		{Path: "/project/embeddings/embed.py"},
+	}
+	r := Detect(nil, files)
+	assert.True(t, r.HasVectorDB)
+	assert.Contains(t, r.VectorDBProviders, "Embeddings (native)")
+}
+
+func TestDetect_MCPDirPatterns(t *testing.T) {
+	files := []walker.FileInfo{
+		{Path: "/project/mcp/server.go"},
+	}
+	r := Detect(nil, files)
+	assert.True(t, r.HasMCP)
+}
+
+func TestDetect_DirPatternsOllama(t *testing.T) {
+	// Simulate ollama-like project structure
+	files := []walker.FileInfo{
+		{Path: "/project/llm/server.go"},
+		{Path: "/project/llm/ggml.go"},
+		{Path: "/project/model/layers.go"},
+		{Path: "/project/tokenizer/bpe.go"},
+		{Path: "/project/server/routes.go"},
+	}
+	r := Detect(nil, files)
+	assert.True(t, r.HasLLMAPI)
+	assert.Contains(t, r.LLMProviders, "LLM (native)")
+}
+
+func TestDetect_DirAndDepsCombined(t *testing.T) {
+	deps := []string{"openai"}
+	files := []walker.FileInfo{
+		{Path: "/project/embeddings/store.py"},
+	}
+	r := Detect(deps, files)
+	assert.True(t, r.HasLLMAPI)
+	assert.True(t, r.HasVectorDB)
+	assert.True(t, r.HasRAGPipeline)
+	assert.Contains(t, r.LLMProviders, "OpenAI")
+	assert.Contains(t, r.VectorDBProviders, "Embeddings (native)")
+}
+
 func TestDetect_NothingDetected(t *testing.T) {
 	deps := []string{"express", "react", "pg"}
 	r := Detect(deps, nil)

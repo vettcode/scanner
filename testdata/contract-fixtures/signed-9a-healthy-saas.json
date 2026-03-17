@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "scan_id": "contract-test-healthy-saas",
-  "timestamp": "2026-03-17T03:45:55Z",
+  "timestamp": "2026-03-17T04:25:33Z",
   "scanner_version": "0.1.0-test",
   "repositories": [
     {
@@ -106,7 +106,7 @@
       "proprietary_dataset": false
     },
     "infrastructure": {
-      "grade": "C",
+      "grade": "B",
       "iac_detected": true,
       "iac_types": [
         "Docker"
@@ -144,9 +144,9 @@
   },
   "warnings": [],
   "integrity": {
-    "scan_checksum": "c72ab7c7ad84cacb72cc958a5ee4bd0b99c2c69478cdbccd39f432cc94b38496",
+    "scan_checksum": "2f999131f9c1d40e3740fbec5b7daf8dd50759d21064db3558c10e934bddc408",
     "scanner_public_key_id": "vettcode-scanner-key-2026-03",
-    "scanner_signature": "4e04OaPf2RXKtfawoB0y6sbr9KvTsZV/8En9z+QZUtF/FEF+QQCjuP12pgnw25skNsjy+G3A9eYHjQWRDH5qCw==",
+    "scanner_signature": "MIYVXKneZ/AGSsxRyes5TQ1PhWWHcXfSn5JWPgQW5qGD8ydIk8EoWNMR4mfm4P9TFmp9gLIC8CPX9DjN3NOuDg==",
     "cosign_nonce": null,
     "platform_cosignature": null,
     "platform_public_key_id": null,
