@@ -91,6 +91,8 @@ func TestClassifyFile(t *testing.T) {
 		{"src/Main.java", "Java", Tier1, false, false},
 		{"src/test/MainTest.java", "Java", Tier1, true, false},
 		{"spec/app_spec.rb", "Ruby", Tier1, true, false},
+		{"test/test_site.rb", "Ruby", Tier1, true, false},
+		{"test/test_filters.rb", "Ruby", Tier1, true, false},
 		{"tests/AppTest.php", "PHP", Tier1, true, false},
 		{"index.html", "HTML", Tier2, false, false},
 		{"style.css", "CSS", Tier2, false, false},

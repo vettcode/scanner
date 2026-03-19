@@ -146,11 +146,11 @@ func isTestFile(path string, lang string) bool {
 			}
 		}
 	case "Ruby":
-		if strings.HasSuffix(base, "_spec.rb") {
+		if strings.HasSuffix(base, "_spec.rb") || strings.HasPrefix(base, "test_") {
 			return true
 		}
 		for _, p := range parts {
-			if p == "spec" {
+			if p == "spec" || p == "test" || p == "tests" {
 				return true
 			}
 		}
