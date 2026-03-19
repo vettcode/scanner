@@ -216,6 +216,68 @@ func TestSnakeCaseIdentifier(t *testing.T) {
 	assert.False(t, snakeCaseIdentifier.MatchString(""))                    // empty
 }
 
+func TestScan_NoFalsePositives_CommentedLines(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "docker-compose.yml", `services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server
+#   environment:
+#     SA_PASSWORD: "Forge123"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "docker-compose.yml"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "commented-out lines should not trigger secrets")
+}
+
+func TestScan_NoFalsePositives_VariableReferences(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "db.php", `<?php
+$args = [
+    'password' => '--password='.$connection['password'],
+    'secret' => $config['api_secret'],
+];
+$value = ' --password="${:LARAVEL_LOAD_PASSWORD}"';
+$env = ['PGPASSWORD' => $config['password']];
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "db.php"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "variable references should not trigger generic secret detection")
+}
+
+func TestScan_NoFalsePositives_TemplateInterpolation(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "template.blade.php", `<template x-for="(page, index) in pages" :key="` + "`page-${page.type}-${page.value}-${page.id || index}`" + `">
+`)
+	path2 := writeFile(t, dir, "messages.php", `<?php
+$customKey = "validation.custom.{$attribute}.{$lowerRule}";
+`)
+	files := []walker.FileInfo{
+		{Path: path, RelPath: "template.blade.php"},
+		{Path: path2, RelPath: "messages.php"},
+	}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "template interpolation should not trigger entropy detection")
+}
+
+func TestIsCommentLine(t *testing.T) {
+	assert.True(t, isCommentLine("  // this is a comment"))
+	assert.True(t, isCommentLine("# yaml comment"))
+	assert.True(t, isCommentLine("  * javadoc line"))
+	assert.True(t, isCommentLine("/* block comment start"))
+	assert.True(t, isCommentLine("<!-- html comment"))
+	assert.False(t, isCommentLine(`password = "hardcoded123"`))
+	assert.False(t, isCommentLine(`  const key = "abc"`))
+}
+
+func TestIsVariableReference(t *testing.T) {
+	assert.True(t, isVariableReference("$connection['password']"))
+	assert.True(t, isVariableReference("$config['api_secret']"))
+	assert.True(t, isVariableReference("--password=.$connection"))
+	assert.True(t, isVariableReference("self->getPassword()"))
+	assert.False(t, isVariableReference("realPassword!2024"))
+	assert.False(t, isVariableReference("sk_live_abcdefg12345"))
+}
+
 func TestScan_GenericSecret_HardcodedPassword(t *testing.T) {
 	dir := t.TempDir()
 	path := writeFile(t, dir, "db.go", `package db

@@ -111,10 +111,12 @@ var allowlistPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)xxx+|yyy+|zzz+|aaa+`),
 	// Template variables / env references are not real secrets
 	regexp.MustCompile(`\{\{.*\.Env\..*\}\}`),           // Go template env: {{ .Env.TOKEN }}
-	regexp.MustCompile(`\$\{[A-Z_]+\}`),                 // Shell env: ${SECRET_KEY}
+	regexp.MustCompile(`\$\{[:{]?[A-Z_]+\}`),             // Shell/template env: ${SECRET_KEY}, ${:LARAVEL_LOAD_PASSWORD}
 	regexp.MustCompile(`\$\{\{.*\}\}`),                  // GitHub Actions / template: ${{ secrets.TOKEN }}
 	regexp.MustCompile(`\bos\.environ\b|\bos\.getenv\b`), // Python env lookups
 	regexp.MustCompile(`\bprocess\.env\b`),               // Node.js env lookups
+	regexp.MustCompile(`\$\{[a-zA-Z]`),                   // Template interpolation: ${var}, ${page.type}
+	regexp.MustCompile(`\{\$[a-zA-Z]`),                   // PHP interpolation: {$attribute}
 	// Regex/pattern definition lines — all Tier 1 languages
 	regexp.MustCompile(`(?i)regexp\.MustCompile|regexp\.Compile`), // Go
 	regexp.MustCompile(`(?i)\bre\.compile\b`),                     // Python
@@ -166,21 +168,31 @@ func scanFile(path, relPath string) []Finding {
 		lineNum++
 		line := scanner.Text()
 
+		// Skip commented-out lines
+		if isCommentLine(line) {
+			continue
+		}
+
 		patternMatched := false
 		for _, p := range patterns {
 			if p.Pattern.MatchString(line) {
 				if isAllowlisted(line) {
 					continue
 				}
-				// For generic secrets, filter out natural language phrases
-				// (e.g., secret: "keyboard cat"). Real secrets don't have spaces.
-				if p.Category == "generic" {
-					if m := genericSecretValuePattern.FindStringSubmatch(line); len(m) >= 3 {
-						if isNaturalLanguage(m[2]) {
-							continue
-						}
+				// For generic secrets, filter out false positives
+			if p.Category == "generic" {
+				if m := genericSecretValuePattern.FindStringSubmatch(line); len(m) >= 3 {
+					val := m[2]
+					// Natural language phrases (spaces)
+					if isNaturalLanguage(val) {
+						continue
+					}
+					// Variable references, not hardcoded values
+					if isVariableReference(val) {
+						continue
 					}
 				}
+			}
 				findings = append(findings, Finding{
 					Path:     path,
 					RelPath:  relPath,
@@ -225,6 +237,31 @@ var assignPattern = regexp.MustCompile(`(?i)(key|token|secret|password|credentia
 // contain spaces; values like "keyboard cat" or "shhhh, very secret" do.
 func isNaturalLanguage(s string) bool {
 	return strings.Contains(s, " ")
+}
+
+// isVariableReference returns true if the value contains variable dereferences
+// rather than a hardcoded secret. Covers PHP ($var, $obj->prop, $arr['key']),
+// Python/Ruby (self.x, obj.x), JS/TS (obj.prop), and string concatenation.
+func isVariableReference(s string) bool {
+	// PHP/Shell variable: $something
+	if strings.Contains(s, "$") {
+		return true
+	}
+	// Object property access or string concat operators
+	if strings.Contains(s, "->") || strings.Contains(s, "..") {
+		return true
+	}
+	return false
+}
+
+// isCommentLine returns true if the line is a comment (after trimming whitespace).
+func isCommentLine(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, "//") ||
+		strings.HasPrefix(trimmed, "#") ||
+		strings.HasPrefix(trimmed, "*") ||
+		strings.HasPrefix(trimmed, "/*") ||
+		strings.HasPrefix(trimmed, "<!--")
 }
 
 // snakeCaseIdentifier matches values that are purely lowercase letters,

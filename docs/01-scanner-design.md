@@ -649,7 +649,9 @@ Runs after scoring. Evaluates threshold conditions against aggregated results. E
 
 - Exclude known false positives: example values in docs, test fixtures, placeholder strings
 - Exclude files matching common test/fixture patterns (`tests/`, `docs/`, `doc/`, `readme`, `examples/`, etc.)
-- Exclude template variable references: `${{ secrets.* }}` (GitHub Actions), `{{ .Env.* }}` (Go templates), `${VAR}` (shell), `process.env.*` (Node.js), `os.environ` (Python)
+- Skip commented-out lines (`//`, `#`, `*`, `/*`, `<!--`) — commented secrets in docker-compose or config files are not real leaks
+- Exclude template variable references: `${{ secrets.* }}` (GitHub Actions), `{{ .Env.* }}` (Go templates), `${VAR}` / `${:VAR}` (shell/Laravel), `process.env.*` (Node.js), `os.environ` (Python), `${expr}` (JS template literals), `{$var}` (PHP interpolation)
+- Exclude generic secret values that are variable dereferences rather than hardcoded strings (e.g., `$connection['password']`, `$config['api_secret']`)
 - Exclude regex pattern definition lines (all Tier 1 languages) to prevent the scanner from flagging its own patterns
 
 **Output:** Count only in the **JSON output** — no file names, line numbers, or secret content. The **terminal output** shows file paths where secrets were detected (e.g., `src/config.ts: 2 potential secrets`) so the seller can locate and remove them before rescanning. Secret values are never shown in either output.
