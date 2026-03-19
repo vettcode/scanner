@@ -84,10 +84,10 @@ The **overall grade** uses the same mapping applied to the weighted average of a
 | Sub-metric | Weight | Formula | Thresholds |
 | --- | --- | --- | --- |
 | Secrets | 35% | `100 if count == 0 else 0` | Binary: any secret → 0 |
-| CVEs | 45% | `max(0, 100 - critical*30 - high*15 - medium*5 - low*1)` | 1 critical → 70, 2 critical → 40 |
+| CVEs | 45% | `max(0, 100 - critical*50 - high*25 - medium*10 - low*2)` | 1 critical → 50, 2 critical → 0 |
 | License issues | 20% | `max(0, 100 - issues * 25)` | 0 → 100, 2 → 50, 4 → 0 |
 
-**Why these thresholds:** Secrets scoring is binary because even one leaked credential is a critical finding. CVE severity weights (critical=30, high=15, medium=5, low=1) follow CVSS severity classification conventions. CVEs at 45% weight captures the actual security consequence of outdated dependencies — unmaintained dependency percentage is scored separately under Dependency Health to avoid double-counting. License issues are weighted at 20% because license risk in M&A carries legal exposure for buyers.
+**Why these thresholds:** Secrets scoring is binary because even one leaked credential is a critical finding. CVE severity weights (critical=50, high=25, medium=10, low=2) are intentionally aggressive — even a single critical CVE halves the sub-score, reflecting the direct liability these create in M&A. CVEs at 45% weight captures the actual security consequence of outdated dependencies — unmaintained dependency percentage is scored separately under Dependency Health to avoid double-counting. License issues are weighted at 20% because license risk in M&A carries legal exposure for buyers.
 
 ---
 
@@ -176,11 +176,11 @@ The **overall grade** uses the same mapping applied to the weighted average of a
 
 | Sub-metric | Weight | Formula | Thresholds |
 | --- | --- | --- | --- |
-| IaC | 40% | `100 if detected else 0` | Binary |
-| CI/CD | 45% | `100 if detected else 0` | Binary |
-| Monitoring | 15% | `100 if detected else 0` | Binary |
+| IaC | 30% | `100 if detected else 0` | Binary |
+| CI/CD | 60% | `100 if detected else 0` | Binary |
+| Monitoring | 10% | `100 if detected else 0` | Binary |
 
-**Why these weights:** CI/CD is weighted highest because it directly affects deployment safety and velocity post-acquisition. IaC is next because it determines infrastructure reproducibility. Monitoring is weighted lowest (15%) because it's the easiest to add post-acquisition and is often configured at deployment time rather than embedded in source code — penalizing its absence heavily would unfairly downgrade projects that have solid IaC + CI/CD.
+**Why these weights:** CI/CD is weighted highest (60%) because it directly affects deployment safety and velocity post-acquisition — a project without CI/CD requires significant operational investment before a buyer can safely ship changes. IaC is next (30%) because it determines infrastructure reproducibility. Monitoring is weighted lowest (10%) because it's the easiest to add post-acquisition and is often configured at deployment time rather than embedded in source code.
 
 **Why binary scoring:** These are foundational operational practices. Having Terraform is fundamentally different from not having Terraform — there's no meaningful gradient. The presence check is based on file/config detection (Dockerfile, .github/workflows, terraform files, monitoring SDK imports).
 
@@ -293,9 +293,9 @@ When the scanner cannot compute a category score due to missing input data, that
 | --- | --- | --- | --- |
 | Development Activity | No `.git` directory present | Yes — **"No Git History"** (High) | Stripped git history is suspicious in an M&A context. Buyers should know. |
 | Dependency Health | Zero dependencies detected (no package manager files) | No | Legitimate for single-file tools, scripts, or self-contained binaries. |
-| Code Maintainability | No files in supported languages (all Tier 2 / unsupported) | No — but report prominently notes "No supported languages analyzed" | The report is essentially a metadata-only scan. Buyer should understand limited coverage. |
+| Code Maintainability | Tier 1 languages account for less than 20% of total LOC | No — but report shows "No supported languages for complexity analysis" | Complexity analysis only runs on Tier 1 files. When they're a small fraction of the codebase, the metrics are unrepresentative. A Rust repo with 2% Python helper scripts should not get a Maintainability grade based only on those scripts. |
+| Handoff Readiness | Tier 1 languages account for less than 20% of total LOC | No — but report shows "No supported languages for test coverage analysis" | Test coverage estimation only counts Tier 1 test/source files. When 98% of the code is Tier 2, showing 0% coverage and an F grade is misleading — the repo may have extensive tests the scanner can't analyze. Doc density, env vars, and README are still shown as raw data. |
 | Security Posture | N/A not possible — secrets detection and license scanning work on all file types regardless of language support. CVEs require dependency files; if none exist, CVE sub-metric scores 100 (no known vulnerabilities). | — | Security always produces a score. |
-| Handoff Readiness | N/A not possible — README detection, env var scanning, and test file ratio work on all repos. | — | Handoff always produces a score. |
 | SRE & Infrastructure | N/A not possible — file detection (Dockerfile, CI configs, monitoring) works on all repos. | — | SRE always produces a score. |
 
 ### Overall grade with N/A categories
@@ -324,6 +324,18 @@ remaining_weights = {
     security: 0.25, maintainability: 0.20, handoff: 0.20, infra: 0.10
 }
 # Sum = 0.75 → renormalize by dividing each by 0.75
+```
+
+**Example:** Tier 2-only repo (e.g., Rust) — Maintainability (20%), Handoff (20%), Dependency Health (10%), and Development Activity (15%) are all N/A:
+
+```
+remaining_weights = {
+    security: 0.25, infra: 0.10
+}
+# Sum = 0.35 → renormalize by dividing each by 0.35
+renormalized = {
+    security: 0.714, infra: 0.286
+}
 ```
 
 ### Display requirements
@@ -363,7 +375,7 @@ Displayed on every report:
 
 5. **Snapshot in time.** A VettCode report reflects the codebase at the moment of scanning. Code quality can change rapidly. Report freshness indicators help buyers assess relevance (< 30 days: Recent, 30–90 days: Aging, > 90 days: Stale).
 
-6. **Language support.** V1 supports JavaScript/TypeScript, Python, Go, PHP, Ruby, and Java. Repositories in unsupported languages are listed but not analyzed. Grades reflect only the analyzed portion of the codebase.
+6. **Language support.** V1 supports full analysis (Tier 1) for JavaScript/TypeScript, Python, Go, PHP, Ruby, and Java. Other languages (Rust, C/C++, Dart, Kotlin, etc.) are detected and LOC-counted but not analyzed for complexity, duplication, or test coverage. When Tier 1 languages account for less than 20% of total LOC, Maintainability and Handoff Readiness are shown as N/A rather than producing misleading grades from unrepresentative data.
 
 ---
 

@@ -159,6 +159,7 @@ type OldestDep struct {
 // HandoffReadiness metrics.
 type HandoffReadiness struct {
 	Grade               *Grade     `json:"grade"`
+	NAReason            string     `json:"na_reason,omitempty"`
 	EstTestCoveragePct  float64    `json:"est_test_coverage_pct"`
 	DocDensity          DocDensity `json:"doc_density"`
 	EnvVarCount         int        `json:"env_var_count"`
@@ -178,6 +179,7 @@ type Activity struct {
 	ActiveMonths       int             `json:"active_months"`
 	TotalMonths        int             `json:"total_months"`
 	ContributorCount   int             `json:"contributor_count"`
+	IsShallowClone     bool            `json:"is_shallow_clone,omitempty"`
 }
 
 // CommitVelocity represents commit frequency data.

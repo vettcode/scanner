@@ -94,6 +94,19 @@ func runScan(cmd *cobra.Command, args []string) error {
 		})
 	}
 
+	// Emit warnings for repos containing Tier 2 code languages (no deep analysis for those)
+	var allWarnings []models.Warning
+	for _, rd := range repoResults {
+		if len(rd.langDet.Tier2CodeLanguages) > 0 {
+			langs := strings.Join(rd.langDet.Tier2CodeLanguages, ", ")
+			allWarnings = append(allWarnings, models.Warning{
+				Code:    "unsupported_language",
+				Message: fmt.Sprintf("%s detected but not yet supported for deep analysis (complexity, dependencies, CVEs).", langs),
+				Repo:    rd.input.Name,
+			})
+		}
+	}
+
 	// Phase 2: Analyze each repository
 	progress.SetPhase(output.PhaseAnalyzing)
 
@@ -102,7 +115,6 @@ func runScan(cmd *cobra.Command, args []string) error {
 		allRepositories     []models.Repository
 		allCVEs             []models.CVE
 		allLicenseIssues    []models.LicenseIssue
-		allWarnings         []models.Warning
 		allHotspots         []models.HotspotFile
 		allSecretFindings   []models.SecretFinding
 		allFuncComplexities []int // for global P90 computation
@@ -294,13 +306,17 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 		// Build repository entry
 		pathHash := hashPath(repo.Path)
+		repoStatus := models.RepoStatusAnalyzed
+		if !rd.langDet.HasTier1 && len(rd.langDet.Tier2CodeLanguages) > 0 {
+			repoStatus = models.RepoStatusUnsupported
+		}
 		repoEntry := models.Repository{
 			Name:              repo.Name,
 			PathHash:          pathHash,
 			Languages:         rd.langDet.Percentages,
 			FileCount:         wr.TotalFiles,
 			LOC:               wr.TotalLOC,
-			Status:            models.RepoStatusAnalyzed,
+			Status:            repoStatus,
 			DetectedLanguages: rd.langDet.DetectedLanguages,
 		}
 		if actResult.HeadSHA != "" {
@@ -311,6 +327,21 @@ func runScan(cmd *cobra.Command, args []string) error {
 		totalLOC += wr.TotalLOC
 		totalFiles += wr.TotalFiles
 	}
+
+	// Compute global Tier 1 LOC fraction. If Tier 1 languages make up less than
+	// 20% of total code, maintainability and handoff grades are unreliable because
+	// complexity/test-coverage analysis only runs on Tier 1 files.
+	var tier1LOC int
+	var allLOC int
+	for _, rd := range repoResults {
+		for lang, loc := range rd.langDet.Languages {
+			allLOC += loc
+			if language.IsTier1(lang) {
+				tier1LOC += loc
+			}
+		}
+	}
+	tier1Sufficient := allLOC > 0 && float64(tier1LOC)/float64(allLOC) >= 0.20
 
 	// Phase 3: Score and grade
 	progress.SetPhase(output.PhaseScoring)
@@ -329,13 +360,23 @@ func runScan(cmd *cobra.Command, args []string) error {
 	globalP90 := computeP90FromSlice(allFuncComplexities)
 
 	// Score each category
-	maintScore := scorer.ScoreMaintainability(scorer.MaintainabilityInput{
-		AvgComplexity:      agg.AvgComplexity,
-		DuplicationPct:     agg.DuplicationPct,
-		AvgNesting:         agg.AvgNesting,
-		PctFilesOver500LOC: agg.PctFilesOver500LOC,
-	})
-	maintGrade := scorer.ScoreToGrade(maintScore)
+	var maintScore float64
+	var maintGrade models.Grade
+	var maintMetric *models.Maintainability
+
+	if tier1Sufficient {
+		maintScore = scorer.ScoreMaintainability(scorer.MaintainabilityInput{
+			AvgComplexity:      agg.AvgComplexity,
+			DuplicationPct:     agg.DuplicationPct,
+			AvgNesting:         agg.AvgNesting,
+			PctFilesOver500LOC: agg.PctFilesOver500LOC,
+		})
+		maintGrade = scorer.ScoreToGrade(maintScore)
+	} else {
+		maintMetric = &models.Maintainability{
+			NAReason: "No supported languages for complexity analysis",
+		}
+	}
 
 	secScore := scorer.ScoreSecurity(scorer.SecurityInput{
 		SecretsCount:      agg.SecretsCount,
@@ -347,23 +388,44 @@ func runScan(cmd *cobra.Command, args []string) error {
 	})
 	secGrade := scorer.ScoreToGrade(secScore)
 
-	handoffScore := scorer.ScoreHandoff(scorer.HandoffInput{
-		EstTestCoveragePct: agg.EstTestCoveragePct,
-		DocDensity:         agg.DocDensity,
-		EnvVarCount:        agg.EnvVarCount,
-	})
-	handoffGrade := scorer.ScoreToGrade(handoffScore)
+	var handoffScore float64
+	var handoffGrade models.Grade
+	var handoffMetric *models.HandoffReadiness
+
+	if tier1Sufficient {
+		handoffScore = scorer.ScoreHandoff(scorer.HandoffInput{
+			EstTestCoveragePct: agg.EstTestCoveragePct,
+			DocDensity:         agg.DocDensity,
+			EnvVarCount:        agg.EnvVarCount,
+		})
+		handoffGrade = scorer.ScoreToGrade(handoffScore)
+	} else {
+		handoffMetric = &models.HandoffReadiness{
+			NAReason:   "No supported languages for test coverage analysis",
+			DocDensity: agg.DocDensity,
+			EnvVarCount: agg.EnvVarCount,
+			HasReadme:  agg.HasReadme,
+		}
+	}
 
 	// Category scores for overall calculation
 	var categoryScores []scorer.CategoryScore
 	var scoredCategories []string
 
+	// Security always gets scored (secrets/CVEs/licenses work regardless of tier)
 	categoryScores = append(categoryScores,
-		scorer.CategoryScore{Name: "maintainability", Score: maintScore},
 		scorer.CategoryScore{Name: "security", Score: secScore},
-		scorer.CategoryScore{Name: "handoff_readiness", Score: handoffScore},
 	)
-	scoredCategories = append(scoredCategories, "maintainability", "security", "handoff_readiness")
+	scoredCategories = append(scoredCategories, "security")
+
+	// Maintainability and handoff only scored when sufficient Tier 1 code is present
+	if tier1Sufficient {
+		categoryScores = append(categoryScores,
+			scorer.CategoryScore{Name: "maintainability", Score: maintScore},
+			scorer.CategoryScore{Name: "handoff_readiness", Score: handoffScore},
+		)
+		scoredCategories = append(scoredCategories, "maintainability", "handoff_readiness")
+	}
 
 	// Dependency health (N/A if no deps)
 	var depHealthMetric *models.DependencyHealth
@@ -426,6 +488,13 @@ func runScan(cmd *cobra.Command, args []string) error {
 			ActiveMonths:     agg.ActiveMonths,
 			TotalMonths:      12,
 			ContributorCount: globalActivity.ContributorCount,
+			IsShallowClone:   globalActivity.IsShallowClone,
+		}
+		if globalActivity.IsShallowClone {
+			allWarnings = append(allWarnings, models.Warning{
+				Code:    "shallow_clone",
+				Message: "Shallow git clone detected — run 'git fetch --unshallow' and re-scan for accurate results.",
+			})
 		}
 		categoryScores = append(categoryScores, scorer.CategoryScore{Name: "development_activity", Score: actScore})
 		scoredCategories = append(scoredCategories, "development_activity")
@@ -539,22 +608,27 @@ func runScan(cmd *cobra.Command, args []string) error {
 		RepoCount:      len(repos),
 		TechStack:      techStackOut,
 		Metrics: models.Metrics{
-			Maintainability: &models.Maintainability{
-				Grade:                &maintGrade,
-				CyclomaticComplexity: models.ComplexityStats{
-					Avg: agg.AvgComplexity,
-					P90: globalP90,
-					Max: agg.MaxComplexity,
-				},
-				NestingDepth: models.NestingStats{
-					Avg: agg.AvgNesting,
-					Max: agg.MaxNesting,
-				},
-				DuplicationPct:     agg.DuplicationPct,
-				HotspotCount:       len(allHotspots),
-				HotspotFiles:       allHotspots,
-				PctFilesOver500LOC: agg.PctFilesOver500LOC,
-			},
+			Maintainability: func() *models.Maintainability {
+				if maintMetric != nil {
+					return maintMetric
+				}
+				return &models.Maintainability{
+					Grade:                &maintGrade,
+					CyclomaticComplexity: models.ComplexityStats{
+						Avg: agg.AvgComplexity,
+						P90: globalP90,
+						Max: agg.MaxComplexity,
+					},
+					NestingDepth: models.NestingStats{
+						Avg: agg.AvgNesting,
+						Max: agg.MaxNesting,
+					},
+					DuplicationPct:     agg.DuplicationPct,
+					HotspotCount:       len(allHotspots),
+					HotspotFiles:       allHotspots,
+					PctFilesOver500LOC: agg.PctFilesOver500LOC,
+				}
+			}(),
 			Security: &models.Security{
 				Grade:                &secGrade,
 				SecretsFound:         agg.SecretsCount,
@@ -566,13 +640,18 @@ func runScan(cmd *cobra.Command, args []string) error {
 				CVEEcosystemsSkipped: ecosystemsSkipped,
 			},
 			DependencyHealth: depHealthMetric,
-			HandoffReadiness: &models.HandoffReadiness{
-				Grade:                &handoffGrade,
-				EstTestCoveragePct:  agg.EstTestCoveragePct,
-				DocDensity:          agg.DocDensity,
-				EnvVarCount:         agg.EnvVarCount,
-				HasReadme:           agg.HasReadme,
-			},
+			HandoffReadiness: func() *models.HandoffReadiness {
+				if handoffMetric != nil {
+					return handoffMetric
+				}
+				return &models.HandoffReadiness{
+					Grade:              &handoffGrade,
+					EstTestCoveragePct: agg.EstTestCoveragePct,
+					DocDensity:         agg.DocDensity,
+					EnvVarCount:        agg.EnvVarCount,
+					HasReadme:          agg.HasReadme,
+				}
+			}(),
 		},
 		Activity:    activityMetric,
 		Detection:   detection,

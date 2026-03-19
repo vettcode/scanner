@@ -52,6 +52,9 @@ func (f *TerminalFormatter) Format(w io.Writer, result *models.ScanResult) {
 		fmt.Fprintf(w, "Scan Duration: %s\n", formatDuration(f.Duration))
 	}
 
+	// Warnings (e.g. unsupported languages)
+	f.formatWarnings(w, result.Warnings)
+
 	// Category sections — ordered by buyer due-diligence priority
 	fmt.Fprintln(w)
 	f.formatSecurity(w, result.Metrics.Security)
@@ -92,6 +95,16 @@ func (f *TerminalFormatter) Format(w io.Writer, result *models.ScanResult) {
 	fmt.Fprintln(w)
 }
 
+func (f *TerminalFormatter) formatWarnings(w io.Writer, warnings []models.Warning) {
+	c := f.Color
+	for _, warn := range warnings {
+		if warn.Code == "unsupported_language" {
+			fmt.Fprintf(w, "  %s %s\n", c.yellow("⚠"), warn.Message)
+			fmt.Fprintf(w, "    %s\n", c.gray("LOC counted. Upload scan to vettcode.com to request full support."))
+		}
+	}
+}
+
 func (f *TerminalFormatter) formatMaintainability(w io.Writer, m *models.Maintainability) {
 	c := f.Color
 	if m == nil {
@@ -100,6 +113,10 @@ func (f *TerminalFormatter) formatMaintainability(w io.Writer, m *models.Maintai
 	}
 	grade := gradeStr(m.Grade)
 	fmt.Fprintln(w, c.sectionHeader("MAINTAINABILITY", grade))
+	if m.Grade == nil && m.NAReason != "" {
+		fmt.Fprintf(w, "  %s\n", c.gray(m.NAReason))
+		return
+	}
 	fmt.Fprintf(w, "  Avg Complexity:        %.1f\n", m.CyclomaticComplexity.Avg)
 	if m.CyclomaticComplexity.Avg > 10 {
 		fmt.Fprintf(w, "  %s\n", c.yellow("💡 High complexity is the biggest factor (40%) — refactor complex functions to improve."))
@@ -280,6 +297,10 @@ func (f *TerminalFormatter) formatHandoff(w io.Writer, h *models.HandoffReadines
 	}
 	grade := gradeStr(h.Grade)
 	fmt.Fprintln(w, c.sectionHeader("HANDOFF READINESS", grade))
+	if h.Grade == nil && h.NAReason != "" {
+		fmt.Fprintf(w, "  %s\n", c.gray(h.NAReason))
+		return
+	}
 	fmt.Fprintf(w, "  Est. Test Coverage:    %.0f%%\n", h.EstTestCoveragePct)
 	if h.EstTestCoveragePct < 1 {
 		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Even minimal test coverage significantly improves Handoff Readiness."))

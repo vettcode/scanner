@@ -372,6 +372,37 @@ func TestTerminalFormatter_InlineTips(t *testing.T) {
 	assert.NotContains(t, out, "Tips to improve your score:")
 }
 
+func TestTerminalFormatter_UnsupportedLanguageWarning(t *testing.T) {
+	gradeB := models.GradeB
+	result := &models.ScanResult{
+		Timestamp: "2026-03-19",
+		RepoCount: 1,
+		TotalLOC:  5000,
+		Metrics:   models.Metrics{},
+		Summary:   models.Summary{OverallGrade: &gradeB},
+		Warnings: []models.Warning{
+			{
+				Code:    "unsupported_language",
+				Message: "Rust detected but not yet supported for deep analysis (complexity, dependencies, CVEs).",
+				Repo:    "my-rust-app",
+			},
+		},
+	}
+
+	formatter := &TerminalFormatter{
+		Color: &ColorConfig{Enabled: false},
+	}
+
+	var buf bytes.Buffer
+	formatter.Format(&buf, result)
+	out := buf.String()
+
+	assert.Contains(t, out, "⚠")
+	assert.Contains(t, out, "not yet supported")
+	assert.Contains(t, out, "vettcode.com")
+	assert.Contains(t, out, "LOC counted")
+}
+
 func TestTerminalFormatter_NoTipsWhenHealthy(t *testing.T) {
 	result := fullTestResult()
 	// fullTestResult has mostly healthy metrics — suppress remaining triggers
@@ -389,6 +420,7 @@ func TestTerminalFormatter_NoTipsWhenHealthy(t *testing.T) {
 	out := buf.String()
 
 	assert.NotContains(t, out, "💡")
+	assert.NotContains(t, out, "⚠")
 	assert.NotContains(t, out, "Tips to improve your score:")
 }
 
@@ -529,6 +561,59 @@ func TestTerminalFormatter_GradeAlignment(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestTerminalFormatter_Tier2OnlyNAReason(t *testing.T) {
+	gradeB := models.GradeB
+
+	result := &models.ScanResult{
+		Timestamp: "2026-03-19",
+		RepoCount: 1,
+		TotalLOC:  50000,
+		Metrics: models.Metrics{
+			Maintainability: &models.Maintainability{
+				NAReason: "No supported languages for complexity analysis",
+			},
+			Security: &models.Security{
+				Grade:        &gradeB,
+				SecretsFound: 0,
+				CVESummary:   models.CVESummary{},
+				OutdatedDeps: models.OutdatedDeps{Total: 0, Outdated: 0},
+			},
+			HandoffReadiness: &models.HandoffReadiness{
+				NAReason:   "No supported languages for test coverage analysis",
+				DocDensity: models.DocDensityMedium,
+				EnvVarCount: 3,
+				HasReadme:  true,
+			},
+		},
+		Summary:  models.Summary{OverallGrade: &gradeB},
+		Warnings: []models.Warning{},
+	}
+
+	formatter := &TerminalFormatter{
+		Color: &ColorConfig{Enabled: false},
+	}
+
+	var buf bytes.Buffer
+	formatter.Format(&buf, result)
+	out := buf.String()
+
+	// NAReason text should appear
+	assert.Contains(t, out, "No supported languages for complexity analysis")
+	assert.Contains(t, out, "No supported languages for test coverage analysis")
+
+	// Should NOT show misleading zero metrics
+	assert.NotContains(t, out, "Avg Complexity")
+	assert.NotContains(t, out, "Code Duplication")
+	assert.NotContains(t, out, "Est. Test Coverage")
+
+	// Maintainability and Handoff sections should NOT show tips
+	// (Infrastructure tips for missing IaC/CI/CD are expected and unrelated)
+	maintSection := out[strings.Index(out, "MAINTAINABILITY"):strings.Index(out, "DEVELOPMENT ACTIVITY")]
+	assert.NotContains(t, maintSection, "💡")
+	handoffSection := out[strings.Index(out, "HANDOFF READINESS"):strings.Index(out, "INFRASTRUCTURE")]
+	assert.NotContains(t, handoffSection, "💡")
 }
 
 func TestColorConfig_GradeColor(t *testing.T) {
