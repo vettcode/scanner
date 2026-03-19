@@ -65,13 +65,7 @@ type osvResponse struct {
 			Score string `json:"score"`
 		} `json:"severity"`
 		DatabaseSpecific json.RawMessage `json:"database_specific"`
-		Affected []struct {
-			Ranges []struct {
-				Events []struct {
-					Fixed string `json:"fixed"`
-				} `json:"events"`
-			} `json:"ranges"`
-		} `json:"affected"`
+		Affected []osvAffected `json:"affected"`
 	} `json:"vulns"`
 }
 
@@ -210,6 +204,51 @@ type vulnInfo struct {
 	fixedVersion string
 }
 
+type osvAffected struct {
+	Ranges []struct {
+		Events []struct {
+			Introduced string `json:"introduced"`
+			Fixed      string `json:"fixed"`
+		} `json:"events"`
+	} `json:"ranges"`
+}
+
+// findFixVersionForVersion finds the fix version from the affected range
+// that actually contains the installed version. OSV vulns often have multiple
+// affected ranges (one per branch), and we need the fix for the user's branch.
+func findFixVersionForVersion(affected []osvAffected, version string) string {
+	for _, a := range affected {
+		for _, r := range a.Ranges {
+			var introduced, fixed string
+			for _, evt := range r.Events {
+				if evt.Introduced != "" {
+					introduced = evt.Introduced
+				}
+				if evt.Fixed != "" {
+					fixed = evt.Fixed
+				}
+			}
+
+			// Check if this range contains our version
+			if introduced != "" && introduced != "0" {
+				if snapshot.CompareVersions(version, introduced) < 0 {
+					continue // version is before this range
+				}
+			}
+			if fixed != "" {
+				if snapshot.CompareVersions(version, fixed) >= 0 {
+					continue // version is already past this fix
+				}
+				return fixed // this is the correct fix for our version
+			}
+			// No fix in this range — vuln is open-ended
+			return ""
+		}
+	}
+	// Fallback: no matching range found
+	return ""
+}
+
 func queryOSV(ctx context.Context, client *http.Client, name, version, ecosystem string) ([]vulnInfo, error) {
 	q := osvQuery{Version: version}
 	q.Package.Name = name
@@ -250,15 +289,15 @@ func queryOSV(ctx context.Context, client *http.Client, name, version, ecosystem
 	var results []vulnInfo
 	for _, v := range osvResp.Vulns {
 		severity := classifySeverity(v.Severity)
-		fixedVer := ""
-		if len(v.Affected) > 0 && len(v.Affected[0].Ranges) > 0 {
-			for _, evt := range v.Affected[0].Ranges[0].Events {
-				if evt.Fixed != "" {
-					fixedVer = evt.Fixed
-					break
-				}
-			}
+		fixedVer := findFixVersionForVersion(v.Affected, version)
+
+		// Skip if the fix version is already <= the installed version.
+		// This catches cases where OSV returns a vuln from a different
+		// branch (e.g., fix 5.4.50 for a 7.x user).
+		if fixedVer != "" && snapshot.CompareVersions(version, fixedVer) >= 0 {
+			continue
 		}
+
 		results = append(results, vulnInfo{
 			id:           v.ID,
 			severity:     severity,

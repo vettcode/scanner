@@ -660,10 +660,11 @@ Runs after scoring. Evaluates threshold conditions against aggregated results. E
 
 **Online mode:**
 
-1. Parse dependency lockfiles to extract package name + exact version
+1. Parse dependency lockfiles to extract package name + exact version (composer.lock for PHP, package-lock.json/yarn.lock for JS, etc.)
 2. Query the OSV.dev API (`https://api.osv.dev/v1/query`) per package ecosystem
-3. Map OSV results to CVE IDs, severity (CVSS), affected version ranges, and fix versions
-4. Cache results in `~/.vettcode/cache/osv/` with 24-hour TTL
+3. Map OSV results to CVE IDs, severity (CVSS), affected version ranges, and fix versions. For multi-branch vulnerabilities (e.g., a CVE affecting both 5.x and 7.x), the scanner finds the fix version from the affected range matching the user's installed version — not the first range in the response.
+4. Post-filter: skip any CVE where the fix version is already <= the installed version (already patched)
+5. Cache results in `~/.vettcode/cache/osv/` with 24-hour TTL
 
 **Offline mode:**
 

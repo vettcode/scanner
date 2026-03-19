@@ -24,32 +24,32 @@ func TestCompareVersions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.a+"_vs_"+tt.b, func(t *testing.T) {
-			assert.Equal(t, tt.want, compareVersions(tt.a, tt.b))
+			assert.Equal(t, tt.want, CompareVersions(tt.a, tt.b))
 		})
 	}
 }
 
 func TestCompareVersions_PreRelease(t *testing.T) {
 	// Release > pre-release
-	assert.Equal(t, 1, compareVersions("1.0.0", "1.0.0rc1"))
-	assert.Equal(t, -1, compareVersions("1.0.0beta1", "1.0.0"))
+	assert.Equal(t, 1, CompareVersions("1.0.0", "1.0.0rc1"))
+	assert.Equal(t, -1, CompareVersions("1.0.0beta1", "1.0.0"))
 
 	// Alpha < beta < rc
-	assert.Equal(t, -1, compareVersions("1.0.0alpha1", "1.0.0beta1"))
-	assert.Equal(t, -1, compareVersions("1.0.0beta1", "1.0.0rc1"))
+	assert.Equal(t, -1, CompareVersions("1.0.0alpha1", "1.0.0beta1"))
+	assert.Equal(t, -1, CompareVersions("1.0.0beta1", "1.0.0rc1"))
 }
 
 func TestCompareVersions_BuildMetadata(t *testing.T) {
 	// Build metadata should be ignored per semver
-	assert.Equal(t, 0, compareVersions("1.0.0+build123", "1.0.0"))
-	assert.Equal(t, 0, compareVersions("1.0.0+build.1", "1.0.0+build.2"))
-	assert.Equal(t, -1, compareVersions("1.0.0+build", "1.0.1"))
+	assert.Equal(t, 0, CompareVersions("1.0.0+build123", "1.0.0"))
+	assert.Equal(t, 0, CompareVersions("1.0.0+build.1", "1.0.0+build.2"))
+	assert.Equal(t, -1, CompareVersions("1.0.0+build", "1.0.1"))
 }
 
 func TestCompareVersions_NumberedSuffixes(t *testing.T) {
 	// rc9 < rc10 (numeric comparison, not lexicographic)
-	assert.Equal(t, -1, compareVersions("1.0.0rc9", "1.0.0rc10"))
-	assert.Equal(t, -1, compareVersions("1.0.0alpha2", "1.0.0alpha10"))
+	assert.Equal(t, -1, CompareVersions("1.0.0rc9", "1.0.0rc10"))
+	assert.Equal(t, -1, CompareVersions("1.0.0alpha2", "1.0.0alpha10"))
 }
 
 func TestVersionAffected(t *testing.T) {

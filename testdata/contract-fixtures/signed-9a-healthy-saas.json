@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "scan_id": "contract-test-healthy-saas",
-  "timestamp": "2026-03-19T01:31:22Z",
+  "timestamp": "2026-03-19T01:56:58Z",
   "scanner_version": "0.1.0-test",
   "repositories": [
     {
@@ -144,9 +144,9 @@
   },
   "warnings": [],
   "integrity": {
-    "scan_checksum": "1ab4d4447c33feef2235816975efcc9ec4d3769d81e193f265078f14d5187972",
+    "scan_checksum": "a3fa5f03a18a227646a4f606527dc8ba32cc618c52746715a211f1fa5d101e3b",
     "scanner_public_key_id": "vettcode-scanner-key-2026-03",
-    "scanner_signature": "LlMKuCFbsFZiMAXjdyhdUh+NQeBGaA0SlyaMyN+sY48hIpuiJfoIFcP8Z3zBtKBlIe13+6hD2vu6/+ZXC9xXCA==",
+    "scanner_signature": "GPhNH16c7snZYvNZe6uJZNyD6etxOunu/BKvCuYUgGWnO0Dx4dQsmUcGN2HIX/xRDCwHBH+k8wMggcOKL+n4Dg==",
     "cosign_nonce": null,
     "platform_cosignature": null,
     "platform_public_key_id": null,

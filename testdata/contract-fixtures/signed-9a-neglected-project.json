@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "scan_id": "contract-test-neglected-project",
-  "timestamp": "2026-03-19T01:31:22Z",
+  "timestamp": "2026-03-19T01:56:58Z",
   "scanner_version": "0.1.0-test",
   "repositories": [
     {
@@ -157,9 +157,9 @@
   },
   "warnings": [],
   "integrity": {
-    "scan_checksum": "a51d9fbd384efb240eabdc8b4ba62d8d78434c6d4dd34ebb4739f44f4248b487",
+    "scan_checksum": "7833f1bc1d5ce11efb894c17d16e8503a49cac44df3254e132fbcf3391affc5f",
     "scanner_public_key_id": "vettcode-scanner-key-2026-03",
-    "scanner_signature": "b67AjKLziAJL1/hCMslw219uEfsCJ0L/qIdb07h8ijnu4y7/669fxQ0LlFVTKOS2qv4kDNfLuPtZKAtL/NOTDg==",
+    "scanner_signature": "fjNos2RYAIs89j+ucCaRGiJ0DAgV5fP+JziEPKUzKRKwUcxO5YAcAeRCGNB4SG6K4iIPJXtliQOjgvT17x5tAw==",
     "cosign_nonce": null,
     "platform_cosignature": null,
     "platform_public_key_id": null,

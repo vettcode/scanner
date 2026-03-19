@@ -126,6 +126,52 @@ func TestLookupCVEs_OfflineVersionNotAffected(t *testing.T) {
 	assert.Equal(t, 0, r.Summary.Total, "fixed version should not match vulnerability")
 }
 
+func TestFindFixVersionForVersion(t *testing.T) {
+	// Multi-branch vuln: 5.x branch fixed at 5.4.50, 7.x branch fixed at 7.2.1
+	affected := []osvAffected{
+		{Ranges: []struct {
+			Events []struct {
+				Introduced string `json:"introduced"`
+				Fixed      string `json:"fixed"`
+			} `json:"events"`
+		}{
+			{Events: []struct {
+				Introduced string `json:"introduced"`
+				Fixed      string `json:"fixed"`
+			}{
+				{Introduced: "5.0.0"},
+				{Fixed: "5.4.50"},
+			}},
+		}},
+		{Ranges: []struct {
+			Events []struct {
+				Introduced string `json:"introduced"`
+				Fixed      string `json:"fixed"`
+			} `json:"events"`
+		}{
+			{Events: []struct {
+				Introduced string `json:"introduced"`
+				Fixed      string `json:"fixed"`
+			}{
+				{Introduced: "7.0.0"},
+				{Fixed: "7.2.1"},
+			}},
+		}},
+	}
+
+	// User on 7.2.0 → should get fix 7.2.1 (not 5.4.50)
+	assert.Equal(t, "7.2.1", findFixVersionForVersion(affected, "7.2.0"))
+
+	// User on 5.4.0 → should get fix 5.4.50
+	assert.Equal(t, "5.4.50", findFixVersionForVersion(affected, "5.4.0"))
+
+	// User on 7.2.1 → already fixed, no matching range
+	assert.Equal(t, "", findFixVersionForVersion(affected, "7.2.1"))
+
+	// User on 2.0.0 → before any affected range
+	assert.Equal(t, "", findFixVersionForVersion(affected, "2.0.0"))
+}
+
 func TestCVESummary(t *testing.T) {
 	r := &CVEResult{
 		Vulnerabilities: []Vulnerability{

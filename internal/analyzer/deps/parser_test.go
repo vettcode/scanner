@@ -119,6 +119,57 @@ func TestParsePHP(t *testing.T) {
 	assert.True(t, names["phpunit/phpunit"])
 }
 
+func TestParsePHP_WithComposerLock(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "composer.json", `{
+		"require": {
+			"php": "^8.1",
+			"symfony/http-foundation": "^7.2.0"
+		},
+		"require-dev": {
+			"phpunit/phpunit": "^10.5.35|^11.5.3|^12.0.1"
+		}
+	}`)
+	writeTestFile(t, dir, "composer.lock", `{
+		"packages": [
+			{"name": "symfony/http-foundation", "version": "v7.2.3"}
+		],
+		"packages-dev": [
+			{"name": "phpunit/phpunit", "version": "10.5.38"}
+		]
+	}`)
+	deps := parsePHP(dir)
+	assert.Len(t, deps, 2)
+	versions := make(map[string]string)
+	for _, d := range deps {
+		versions[d.Name] = d.Version
+	}
+	// Should use locked versions from composer.lock, not constraint from composer.json
+	assert.Equal(t, "7.2.3", versions["symfony/http-foundation"])
+	assert.Equal(t, "10.5.38", versions["phpunit/phpunit"])
+}
+
+func TestParsePHP_NoLock_SkipsBadVersions(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "composer.json", `{
+		"require": {
+			"phpunit/phpunit": "^10.5.35|^11.5.3|^12.0.1",
+			"symfony/http-foundation": "^7.2.0"
+		}
+	}`)
+	deps := parsePHP(dir)
+	// phpunit constraint "10.5.35|^11.5.3|^12.0.1" fails looksLikeSemver (contains |)
+	// symfony "7.2.0" passes
+	versions := make(map[string]string)
+	for _, d := range deps {
+		versions[d.Name] = d.Version
+	}
+	assert.Equal(t, "7.2.0", versions["symfony/http-foundation"])
+	// phpunit should be skipped due to pipe-separated constraint
+	_, hasPHPUnit := versions["phpunit/phpunit"]
+	assert.False(t, hasPHPUnit, "pipe-separated constraints should be skipped")
+}
+
 func TestParseRuby_Gemfile(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, dir, "Gemfile", `

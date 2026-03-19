@@ -143,14 +143,14 @@ func looksLikeVersion(s string) bool {
 func versionAffected(version, introduced, fixed string) bool {
 	// If introduced is specified and non-zero, version must be >= introduced
 	if introduced != "" && introduced != "0" {
-		if compareVersions(version, introduced) < 0 {
+		if CompareVersions(version, introduced) < 0 {
 			return false
 		}
 	}
 
 	// If fixed is specified, version must be < fixed
 	if fixed != "" {
-		if compareVersions(version, fixed) >= 0 {
+		if CompareVersions(version, fixed) >= 0 {
 			return false
 		}
 	}
@@ -158,10 +158,10 @@ func versionAffected(version, introduced, fixed string) bool {
 	return true
 }
 
-// compareVersions compares two version strings.
+// CompareVersions compares two version strings.
 // Returns -1 if a < b, 0 if a == b, 1 if a > b.
 // Handles semver (X.Y.Z), PEP 440 basics, and pre-release suffixes.
-func compareVersions(a, b string) int {
+func CompareVersions(a, b string) int {
 	partsA := parseVersion(a)
 	partsB := parseVersion(b)
 

@@ -130,7 +130,12 @@ func parseNPM(root string) []Dependency {
 // looksLikeSemver returns true if the version string has at least two
 // dot-separated numeric segments (e.g. "8.5", "14.2.35"). Single numbers
 // like "8" (from cleaned ranges like "^8") are not reliable for CVE matching.
+// Also rejects constraint expressions containing | (OR), spaces, or commas.
 func looksLikeSemver(v string) bool {
+	// Reject constraint expressions (e.g., "^10.5.35|^11.5.3|^12.0.1")
+	if strings.ContainsAny(v, "| ,") {
+		return false
+	}
 	parts := strings.SplitN(v, ".", 3)
 	if len(parts) < 2 {
 		return false
@@ -484,8 +489,11 @@ func parseGo(root string) []Dependency {
 	return deps
 }
 
-// parsePHP extracts dependencies from composer.json.
+// parsePHP extracts dependencies from composer.lock (preferred) or composer.json.
 func parsePHP(root string) []Dependency {
+	// Try composer.lock first for exact versions
+	lockVersions := parseComposerLock(root)
+
 	path := filepath.Join(root, "composer.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -510,9 +518,17 @@ func parsePHP(root string) []Dependency {
 			}
 			if !seen[name] {
 				seen[name] = true
+				// Prefer locked version from composer.lock
+				v := lockVersions[name]
+				if v == "" {
+					v = cleanVersion(version)
+				}
+				if !looksLikeSemver(v) {
+					continue
+				}
 				deps = append(deps, Dependency{
 					Name:      name,
-					Version:   cleanVersion(version),
+					Version:   v,
 					Ecosystem: "packagist",
 					Language:  "PHP",
 				})
@@ -524,6 +540,45 @@ func parsePHP(root string) []Dependency {
 	addDeps(composer.RequireDev)
 
 	return deps
+}
+
+// parseComposerLock reads composer.lock and returns a map of package name to locked version.
+func parseComposerLock(root string) map[string]string {
+	path := filepath.Join(root, "composer.lock")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+
+	var lock struct {
+		Packages    []composerLockPackage `json:"packages"`
+		PackagesDev []composerLockPackage `json:"packages-dev"`
+	}
+	if json.Unmarshal(data, &lock) != nil {
+		return nil
+	}
+
+	versions := make(map[string]string)
+	for _, p := range lock.Packages {
+		v := strings.TrimPrefix(p.Version, "v")
+		if looksLikeSemver(v) {
+			versions[p.Name] = v
+		}
+	}
+	for _, p := range lock.PackagesDev {
+		if _, exists := versions[p.Name]; !exists {
+			v := strings.TrimPrefix(p.Version, "v")
+			if looksLikeSemver(v) {
+				versions[p.Name] = v
+			}
+		}
+	}
+	return versions
+}
+
+type composerLockPackage struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
 }
 
 // parseRuby extracts dependencies from Gemfile.lock.
