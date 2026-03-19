@@ -2,6 +2,7 @@ package output
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 	"time"
 
@@ -175,7 +176,6 @@ func TestTerminalFormatter_Format_ContainsAllSections(t *testing.T) {
 	// Footer
 	assert.Contains(t, out, "vettcode-scan-result.json")
 	assert.Contains(t, out, "platform.vettcode.com")
-	assert.Contains(t, out, "vettcode.com/deep")
 }
 
 func TestTerminalFormatter_NoColor(t *testing.T) {
@@ -324,8 +324,16 @@ func TestTerminalFormatter_InlineTips(t *testing.T) {
 	assert.Contains(t, out, "IaC in a separate repo? Add it to the scan scope.")
 	assert.Contains(t, out, "CI/CD in a separate repo? Add it to the scan scope.")
 
-	// Activity inline tip
+	// Activity inline tips
 	assert.Contains(t, out, "Recent commit activity improves your Activity score.")
+	assert.Contains(t, out, "Low commit velocity impacts 30% of this score")
+	assert.Contains(t, out, "Committing in more months improves consistency")
+
+	// Dependency Health — median age tip
+	assert.Contains(t, out, "Median dependency age over 18 months")
+
+	// Infrastructure — monitoring tip
+	assert.Contains(t, out, "Adding monitoring/observability tools improves this grade.")
 
 	// Old block header must not appear
 	assert.NotContains(t, out, "Tips to improve your score:")
@@ -333,9 +341,11 @@ func TestTerminalFormatter_InlineTips(t *testing.T) {
 
 func TestTerminalFormatter_NoTipsWhenHealthy(t *testing.T) {
 	result := fullTestResult()
-	// fullTestResult has healthy metrics — no tips should trigger
-	// (except HasReadme defaults to false, so set it true)
+	// fullTestResult has mostly healthy metrics — suppress remaining triggers
 	result.Metrics.HandoffReadiness.HasReadme = true
+	result.Metrics.Security.CVESummary.High = 0
+	result.Metrics.Security.LicenseIssueCount = 0
+	result.Detection.Infrastructure.MonitoringDetected = true
 
 	formatter := &TerminalFormatter{
 		Color: &ColorConfig{Enabled: false},
@@ -347,6 +357,145 @@ func TestTerminalFormatter_NoTipsWhenHealthy(t *testing.T) {
 
 	assert.NotContains(t, out, "💡")
 	assert.NotContains(t, out, "Tips to improve your score:")
+}
+
+func TestTerminalFormatter_NewInlineTips(t *testing.T) {
+	gradeD := models.GradeD
+
+	result := &models.ScanResult{
+		Timestamp: "2026-03-13",
+		RepoCount: 1,
+		TotalLOC:  5000,
+		Metrics: models.Metrics{
+			Security: &models.Security{
+				Grade:             &gradeD,
+				SecretsFound:      0,
+				CVESummary:        models.CVESummary{Critical: 0, High: 2, Medium: 3},
+				OutdatedDeps:      models.OutdatedDeps{Total: 20, Outdated: 0},
+				LicenseIssueCount: 2,
+			},
+			Maintainability: &models.Maintainability{
+				Grade:                &gradeD,
+				CyclomaticComplexity: models.ComplexityStats{Avg: 18.0},
+				DuplicationPct:       22,
+				HotspotCount:         5,
+			},
+			HandoffReadiness: &models.HandoffReadiness{
+				Grade:              &gradeD,
+				EstTestCoveragePct: 15,
+				DocDensity:         models.DocDensityLow,
+				EnvVarCount:        20,
+				HasReadme:          true,
+			},
+			DependencyHealth: &models.DependencyHealth{
+				Grade:             &gradeD,
+				MedianAgeMonths:   30,
+				UnmaintainedPct:   20,
+				UnmaintainedCount: 4,
+			},
+		},
+		Activity: &models.Activity{
+			Grade:               &gradeD,
+			LastCommitDate:      "2026-03-01",
+			DaysSinceLastCommit: 12,
+			CommitVelocity:      models.CommitVelocity{AvgPerMonth: 3, Trend: models.TrendDeclining},
+			ActiveMonths:        4,
+		},
+		Detection: models.Detection{
+			Infrastructure: models.InfrastructureDetection{
+				Grade:              &gradeD,
+				IaCDetected:        true,
+				IaCTypes:           []string{"Docker"},
+				CICDDetected:       true,
+				CICDProvider:       "GitHub Actions",
+				MonitoringDetected: false,
+			},
+		},
+		Summary: models.Summary{},
+	}
+
+	formatter := &TerminalFormatter{
+		Color: &ColorConfig{Enabled: false},
+	}
+
+	var buf bytes.Buffer
+	formatter.Format(&buf, result)
+	out := buf.String()
+
+	// Security: high CVEs (no critical) + license issues
+	assert.Contains(t, out, "2 high-severity CVEs are the biggest drag")
+	assert.NotContains(t, out, "Update dependencies with known critical vulnerabilities")
+	assert.Contains(t, out, "Resolving license conflicts can improve up to 20%")
+
+	// Maintainability: high complexity + duplication
+	assert.Contains(t, out, "High complexity is the biggest factor (40%)")
+	assert.Contains(t, out, "Duplication above 10% drags this grade")
+
+	// Dependency Health: old median age (but unmaintained < 50% so no unmaintained tip)
+	assert.Contains(t, out, "Median dependency age over 18 months")
+	assert.NotContains(t, out, "Updating outdated dependencies improves Dependency Health")
+
+	// Activity: low velocity + low consistency (but recent commit so no stale tip)
+	assert.Contains(t, out, "Low commit velocity impacts 30%")
+	assert.Contains(t, out, "Committing in more months improves consistency")
+	assert.NotContains(t, out, "Recent commit activity improves your Activity score")
+
+	// Handoff: low coverage (but nonzero) + many env vars
+	assert.Contains(t, out, "Test coverage under 40% impacts 50%")
+	assert.NotContains(t, out, "Even minimal test coverage")
+	assert.Contains(t, out, "Many env vars add handoff complexity")
+
+	// Infrastructure: no monitoring (but has IaC and CI/CD)
+	assert.Contains(t, out, "Adding monitoring/observability tools")
+	assert.NotContains(t, out, "IaC in a separate repo")
+	assert.NotContains(t, out, "CI/CD in a separate repo")
+}
+
+func TestTerminalFormatter_GradeAlignment(t *testing.T) {
+	result := fullTestResult()
+	formatter := &TerminalFormatter{
+		Color: &ColorConfig{Enabled: true},
+	}
+
+	var buf bytes.Buffer
+	formatter.Format(&buf, result)
+	out := buf.String()
+
+	// With ANSI codes enabled, grades must not smash against labels.
+	// Every section header line should have at least one space before the
+	// grade color escape sequence.
+	labels := []string{
+		"SECURITY",
+		"MAINTAINABILITY",
+		"DEVELOPMENT ACTIVITY",
+		"DEPENDENCY HEALTH",
+		"HANDOFF READINESS",
+		"INFRASTRUCTURE",
+		"OVERALL GRADE",
+	}
+	for _, label := range labels {
+		// Find the line containing this label
+		for _, line := range strings.Split(out, "\n") {
+			if strings.Contains(line, label) {
+				// There must be at least one space between the end of the
+				// bold reset and the grade color start (\033[).
+				// A simple check: the label bold sequence is followed by
+				// a space before the next escape.
+				boldEnd := strings.Index(line, label)
+				if boldEnd < 0 {
+					continue
+				}
+				// After the label+reset, the next non-escape char sequence
+				// should start with a space.
+				afterLabel := line[boldEnd+len(label):]
+				// Strip the ANSI reset that follows bold(label)
+				afterLabel = strings.TrimPrefix(afterLabel, ansiReset)
+				assert.True(t, len(afterLabel) > 0 && afterLabel[0] == ' ',
+					"grade smashes against label %q: %q", label, line)
+				break
+			}
+		}
+	}
 }
 
 func TestColorConfig_GradeColor(t *testing.T) {

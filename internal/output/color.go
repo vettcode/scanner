@@ -1,6 +1,9 @@
 package output
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // ANSI color codes
 const (
@@ -96,6 +99,17 @@ func (c *ColorConfig) severityColor(severity string) string {
 	default:
 		return severity
 	}
+}
+
+// sectionHeader returns a label+grade string padded based on visible label
+// width (ignoring ANSI bytes) so grades align consistently.
+func (c *ColorConfig) sectionHeader(label string, grade string) string {
+	const width = 25
+	pad := width - len(label)
+	if pad < 1 {
+		pad = 1
+	}
+	return c.bold(label) + strings.Repeat(" ", pad) + c.gradeColor(grade)
 }
 
 // yesNo formats a boolean detection with optional detail.

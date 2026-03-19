@@ -52,21 +52,21 @@ func (f *TerminalFormatter) Format(w io.Writer, result *models.ScanResult) {
 		fmt.Fprintf(w, "Scan Duration: %s\n", formatDuration(f.Duration))
 	}
 
-	// Category sections — ordered by importance to buyers
-	fmt.Fprintln(w)
-	f.formatHandoff(w, result.Metrics.HandoffReadiness)
+	// Category sections — ordered by buyer due-diligence priority
 	fmt.Fprintln(w)
 	f.formatSecurity(w, result.Metrics.Security)
 	fmt.Fprintln(w)
 	f.formatMaintainability(w, result.Metrics.Maintainability)
 	fmt.Fprintln(w)
+	f.formatActivity(w, result.Activity)
+	fmt.Fprintln(w)
 	f.formatDependencyHealth(w, result.Metrics.DependencyHealth)
+	fmt.Fprintln(w)
+	f.formatHandoff(w, result.Metrics.HandoffReadiness)
 	fmt.Fprintln(w)
 	f.formatInfrastructure(w, result.Detection.Infrastructure, result.TechStack.ExternalServices)
 	fmt.Fprintln(w)
 	f.formatAIDetection(w, result.Detection.AI)
-	fmt.Fprintln(w)
-	f.formatActivity(w, result.Activity)
 
 	// Overall grade
 	fmt.Fprintln(w)
@@ -74,7 +74,7 @@ func (f *TerminalFormatter) Format(w io.Writer, result *models.ScanResult) {
 	if result.Summary.OverallGrade != nil {
 		overallGrade = string(*result.Summary.OverallGrade)
 	}
-	fmt.Fprintf(w, "%-25s%s\n", c.bold("OVERALL GRADE"), c.gradeColor(overallGrade))
+	fmt.Fprintln(w, c.sectionHeader("OVERALL GRADE", overallGrade))
 
 	// Footer
 	fmt.Fprintln(w)
@@ -95,13 +95,19 @@ func (f *TerminalFormatter) Format(w io.Writer, result *models.ScanResult) {
 func (f *TerminalFormatter) formatMaintainability(w io.Writer, m *models.Maintainability) {
 	c := f.Color
 	if m == nil {
-		fmt.Fprintf(w, "%-25s%s\n", c.bold("MAINTAINABILITY"), c.gray("N/A"))
+		fmt.Fprintln(w, c.sectionHeader("MAINTAINABILITY", c.gray("N/A")))
 		return
 	}
 	grade := gradeStr(m.Grade)
-	fmt.Fprintf(w, "%-25s%s\n", c.bold("MAINTAINABILITY"), c.gradeColor(grade))
+	fmt.Fprintln(w, c.sectionHeader("MAINTAINABILITY", grade))
 	fmt.Fprintf(w, "  Avg Complexity:        %.1f\n", m.CyclomaticComplexity.Avg)
+	if m.CyclomaticComplexity.Avg > 10 {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 High complexity is the biggest factor (40%) — refactor complex functions to improve."))
+	}
 	fmt.Fprintf(w, "  Code Duplication:      %.1f%%\n", m.DuplicationPct)
+	if m.DuplicationPct > 10 {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Duplication above 10% drags this grade (30% weight) — extract shared logic."))
+	}
 	fmt.Fprintf(w, "  Hotspot Files:         %d\n", m.HotspotCount)
 	for i, h := range m.HotspotFiles {
 		if i >= 5 {
@@ -119,11 +125,11 @@ func (f *TerminalFormatter) formatMaintainability(w io.Writer, m *models.Maintai
 func (f *TerminalFormatter) formatSecurity(w io.Writer, s *models.Security) {
 	c := f.Color
 	if s == nil {
-		fmt.Fprintf(w, "%-25s%s\n", c.bold("SECURITY"), c.gray("N/A"))
+		fmt.Fprintln(w, c.sectionHeader("SECURITY", c.gray("N/A")))
 		return
 	}
 	grade := gradeStr(s.Grade)
-	fmt.Fprintf(w, "%-25s%s\n", c.bold("SECURITY"), c.gradeColor(grade))
+	fmt.Fprintln(w, c.sectionHeader("SECURITY", grade))
 
 	secretsStr := fmt.Sprintf("%d", s.SecretsFound)
 	if s.SecretsFound > 0 {
@@ -167,21 +173,31 @@ func (f *TerminalFormatter) formatSecurity(w io.Writer, s *models.Security) {
 	}
 	if s.CVESummary.Critical > 0 {
 		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Update dependencies with known critical vulnerabilities."))
+	} else if s.CVESummary.High > 0 {
+		fmt.Fprintf(w, "  %s\n", c.yellow(fmt.Sprintf(
+			"💡 %d high-severity CVEs are the biggest drag on this grade — upgrade affected packages.",
+			s.CVESummary.High)))
 	}
 
 	fmt.Fprintf(w, "  Outdated Deps:         %d/%d\n", s.OutdatedDeps.Outdated, s.OutdatedDeps.Total)
 	fmt.Fprintf(w, "  License Issues:        %d\n", s.LicenseIssueCount)
+	if s.LicenseIssueCount > 0 {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Resolving license conflicts can improve up to 20% of this score."))
+	}
 }
 
 func (f *TerminalFormatter) formatDependencyHealth(w io.Writer, d *models.DependencyHealth) {
 	c := f.Color
 	if d == nil {
-		fmt.Fprintf(w, "%-25s%s\n", c.bold("DEPENDENCY HEALTH"), c.gray("N/A"))
+		fmt.Fprintln(w, c.sectionHeader("DEPENDENCY HEALTH", c.gray("N/A")))
 		return
 	}
 	grade := gradeStr(d.Grade)
-	fmt.Fprintf(w, "%-25s%s\n", c.bold("DEPENDENCY HEALTH"), c.gradeColor(grade))
+	fmt.Fprintln(w, c.sectionHeader("DEPENDENCY HEALTH", grade))
 	fmt.Fprintf(w, "  Median Dep Age:        %d months\n", d.MedianAgeMonths)
+	if d.MedianAgeMonths > 18 {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Median dependency age over 18 months impacts 50% of this score — update core packages."))
+	}
 	fmt.Fprintf(w, "  Unmaintained (2yr+):   %.0f%% (%d)\n", d.UnmaintainedPct, d.UnmaintainedCount)
 	if d.UnmaintainedPct >= 50 {
 		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Updating outdated dependencies improves Dependency Health."))
@@ -194,18 +210,24 @@ func (f *TerminalFormatter) formatDependencyHealth(w io.Writer, d *models.Depend
 func (f *TerminalFormatter) formatActivity(w io.Writer, a *models.Activity) {
 	c := f.Color
 	if a == nil {
-		fmt.Fprintf(w, "%-25s%s\n", c.bold("DEVELOPMENT ACTIVITY"), c.gray("N/A"))
+		fmt.Fprintln(w, c.sectionHeader("DEVELOPMENT ACTIVITY", c.gray("N/A")))
 		return
 	}
 	grade := gradeStr(a.Grade)
-	fmt.Fprintf(w, "%-25s%s\n", c.bold("DEVELOPMENT ACTIVITY"), c.gradeColor(grade))
+	fmt.Fprintln(w, c.sectionHeader("DEVELOPMENT ACTIVITY", grade))
 	fmt.Fprintf(w, "  Last Commit:           %s (%d days ago)\n", a.LastCommitDate, a.DaysSinceLastCommit)
 	if a.DaysSinceLastCommit > 180 {
 		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Recent commit activity improves your Activity score."))
 	}
 	fmt.Fprintf(w, "  Commit Velocity:       %.0f/mo avg (last 12 months)\n", a.CommitVelocity.AvgPerMonth)
+	if a.CommitVelocity.AvgPerMonth < 5 {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Low commit velocity impacts 30% of this score — regular commits signal an active project."))
+	}
 	fmt.Fprintf(w, "  Trend:                 %s\n", titleCase(string(a.CommitVelocity.Trend)))
 	fmt.Fprintf(w, "  Active Months:         %d of 12\n", a.ActiveMonths)
+	if a.ActiveMonths <= 6 {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Committing in more months improves consistency (30% of this score)."))
+	}
 }
 
 func (f *TerminalFormatter) formatAIDetection(w io.Writer, ai models.AIDetection) {
@@ -221,7 +243,7 @@ func (f *TerminalFormatter) formatAIDetection(w io.Writer, ai models.AIDetection
 func (f *TerminalFormatter) formatInfrastructure(w io.Writer, infra models.InfrastructureDetection, externalServices []string) {
 	c := f.Color
 	grade := gradeStr(infra.Grade)
-	fmt.Fprintf(w, "%-25s%s\n", c.bold("INFRASTRUCTURE"), c.gradeColor(grade))
+	fmt.Fprintln(w, c.sectionHeader("INFRASTRUCTURE", grade))
 	fmt.Fprintf(w, "  IaC:                   %s\n", c.yesNo(infra.IaCDetected, strings.Join(infra.IaCTypes, ", ")))
 	if !infra.IaCDetected {
 		fmt.Fprintf(w, "  %s\n", c.yellow("💡 IaC in a separate repo? Add it to the scan scope."))
@@ -231,6 +253,9 @@ func (f *TerminalFormatter) formatInfrastructure(w io.Writer, infra models.Infra
 		fmt.Fprintf(w, "  %s\n", c.yellow("💡 CI/CD in a separate repo? Add it to the scan scope."))
 	}
 	fmt.Fprintf(w, "  Monitoring:            %s\n", c.yesNo(infra.MonitoringDetected, strings.Join(infra.MonitoringTools, ", ")))
+	if !infra.MonitoringDetected {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Adding monitoring/observability tools improves this grade."))
+	}
 	if len(externalServices) > 0 {
 		fmt.Fprintf(w, "  External Services:     %s\n", strings.Join(externalServices, ", "))
 	}
@@ -239,17 +264,22 @@ func (f *TerminalFormatter) formatInfrastructure(w io.Writer, infra models.Infra
 func (f *TerminalFormatter) formatHandoff(w io.Writer, h *models.HandoffReadiness) {
 	c := f.Color
 	if h == nil {
-		fmt.Fprintf(w, "%-25s%s\n", c.bold("HANDOFF READINESS"), c.gray("N/A"))
+		fmt.Fprintln(w, c.sectionHeader("HANDOFF READINESS", c.gray("N/A")))
 		return
 	}
 	grade := gradeStr(h.Grade)
-	fmt.Fprintf(w, "%-25s%s\n", c.bold("HANDOFF READINESS"), c.gradeColor(grade))
+	fmt.Fprintln(w, c.sectionHeader("HANDOFF READINESS", grade))
 	fmt.Fprintf(w, "  Est. Test Coverage:    %.0f%%\n", h.EstTestCoveragePct)
 	if h.EstTestCoveragePct < 1 {
 		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Even minimal test coverage significantly improves Handoff Readiness."))
+	} else if h.EstTestCoveragePct < 40 {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Test coverage under 40% impacts 50% of this score — adding tests has the biggest payoff."))
 	}
 	fmt.Fprintf(w, "  Doc Density:           %s\n", titleCase(string(h.DocDensity)))
 	fmt.Fprintf(w, "  Env Vars:              %d\n", h.EnvVarCount)
+	if h.EnvVarCount > 15 {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Many env vars add handoff complexity — document them to help buyers."))
+	}
 	if !h.HasReadme {
 		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Adding a README helps buyers understand your project."))
 	}
