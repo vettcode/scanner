@@ -62,11 +62,11 @@ The **overall grade** uses the same mapping applied to the weighted average of a
 | Sub-metric | Weight | Formula | Thresholds |
 | --- | --- | --- | --- |
 | Complexity | 40% | `max(0, 100 - (avg_complexity - 5) * 4)` | avg 5 → 100, avg 10 → 80, avg 15 → 60 |
-| Duplication | 30% | `max(0, 100 - duplication_pct * 5)` | 0% → 100, 5% → 75, 10% → 50, 20% → 0 |
+| Duplication | 30% | `max(0, 100 - duplication_pct * 3)` | 0% → 100, 5% → 85, 10% → 70, 20% → 40, 33% → 0 |
 | Nesting | 15% | `max(0, 100 - (avg_nesting - 1.5) * 20)` | avg 1.5 → 100, 2.5 → 80, 4.0 → 50 |
 | File size | 15% | `max(0, 100 - pct_files_over_500loc * 2)` | 0% large → 100, 25% → 50, 50% → 0 |
 
-**Why these thresholds:** Cyclomatic complexity of 5 is widely accepted as "simple" (McCabe, 1976). Duplication under 5% is considered healthy across most static analysis tools. Nesting depth of 1.5 average reflects flat, readable code. The 500-LOC file threshold aligns with common linter defaults.
+**Why these thresholds:** Cyclomatic complexity of 5 is widely accepted as "simple" (McCabe, 1976). Duplication multiplier of 3 (zero at 33%) is calibrated against large frameworks where 10-15% duplication is normal due to intentional pattern repetition across modules; the previous multiplier of 5 (zero at 20%) was too punitive for well-maintained large codebases. Nesting depth of 1.5 average reflects flat, readable code. The 500-LOC file threshold aligns with common linter defaults.
 
 ---
 

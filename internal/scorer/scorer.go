@@ -27,7 +27,7 @@ type MaintainabilityInput struct {
 // ScoreMaintainability computes the maintainability category score (0-100).
 func ScoreMaintainability(in MaintainabilityInput) float64 {
 	complexity := clamp(100 - (in.AvgComplexity-5)*4)  // 40%
-	duplication := clamp(100 - in.DuplicationPct*5)     // 30%
+	duplication := clamp(100 - in.DuplicationPct*3)     // 30%
 	nesting := clamp(100 - (in.AvgNesting-1.5)*20)     // 15%
 	fileSize := clamp(100 - in.PctFilesOver500LOC*2)    // 15%
 

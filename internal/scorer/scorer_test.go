@@ -59,18 +59,18 @@ func TestScoreMaintainability_Perfect(t *testing.T) {
 func TestScoreMaintainability_Moderate(t *testing.T) {
 	score := ScoreMaintainability(MaintainabilityInput{
 		AvgComplexity:      10.0, // → 80
-		DuplicationPct:     5.0,  // → 75
+		DuplicationPct:     5.0,  // → 85
 		AvgNesting:         2.5,  // → 80
 		PctFilesOver500LOC: 25.0, // → 50
 	})
-	// 80*0.40 + 75*0.30 + 80*0.15 + 50*0.15 = 32 + 22.5 + 12 + 7.5 = 74
-	assert.InDelta(t, 74.0, score, 0.01)
+	// 80*0.40 + 85*0.30 + 80*0.15 + 50*0.15 = 32 + 25.5 + 12 + 7.5 = 77
+	assert.InDelta(t, 77.0, score, 0.01)
 }
 
 func TestScoreMaintainability_Poor(t *testing.T) {
 	score := ScoreMaintainability(MaintainabilityInput{
 		AvgComplexity:      30.0,  // → 0 (clamped)
-		DuplicationPct:     25.0,  // → 0 (clamped)
+		DuplicationPct:     40.0,  // → 0 (clamped, 100-40*3=-20→0)
 		AvgNesting:         6.5,   // → 0 (clamped)
 		PctFilesOver500LOC: 100.0, // → 0 (clamped)
 	})
