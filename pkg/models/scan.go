@@ -18,7 +18,7 @@ const (
 	GradeF  Grade = "F"
 )
 
-// Severity represents a red flag or CVE severity level.
+// Severity represents a CVE or risk severity level.
 type Severity string
 
 const (
@@ -63,20 +63,6 @@ const (
 	PricingTierStandard     PricingTierName = "standard"
 	PricingTierProfessional PricingTierName = "professional"
 	PricingTierEnterprise   PricingTierName = "enterprise"
-)
-
-// RedFlagCode represents a red flag type.
-type RedFlagCode string
-
-const (
-	RedFlagSecretsDetected  RedFlagCode = "secrets_detected"
-	RedFlagCriticalCVE      RedFlagCode = "critical_cve"
-	RedFlagNoTests          RedFlagCode = "no_tests"
-	RedFlagNoCICD           RedFlagCode = "no_ci_cd"
-	RedFlagStaleRepo        RedFlagCode = "stale_repo"
-	RedFlagNoReadme         RedFlagCode = "no_readme"
-	RedFlagUnmaintainedDeps RedFlagCode = "unmaintained_deps"
-	RedFlagNoGitHistory     RedFlagCode = "no_git_history"
 )
 
 // VerificationLevel represents the scan verification level.

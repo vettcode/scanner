@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "scan_id": "contract-test-neglected-project",
-  "timestamp": "2026-03-19T03:15:41Z",
+  "timestamp": "2026-03-19T04:22:41Z",
   "scanner_version": "0.1.0-test",
   "repositories": [
     {
@@ -115,31 +115,6 @@
       "monitoring_tools": []
     }
   },
-  "red_flags": {
-    "count": 4,
-    "flags": [
-      {
-        "flag": "no_tests",
-        "detail": "0% est. test coverage — no test files found",
-        "severity": "high"
-      },
-      {
-        "flag": "no_ci_cd",
-        "detail": "No CI/CD pipeline detected",
-        "severity": "medium"
-      },
-      {
-        "flag": "no_readme",
-        "detail": "No README found in any repository",
-        "severity": "low"
-      },
-      {
-        "flag": "no_git_history",
-        "detail": "No git history detected (Development Activity: N/A)",
-        "severity": "high"
-      }
-    ]
-  },
   "summary": {
     "scored_categories": [
       "maintainability",
@@ -157,9 +132,9 @@
   },
   "warnings": [],
   "integrity": {
-    "scan_checksum": "688d48b9e900c8b9a9a8ae2dd09f0518eec7bd6abcd192f0ca55b12a1b14aef6",
+    "scan_checksum": "b15ed18ef8c5772d045d0a2f74fc82fd909a63792282a2a46ea13d7362d1d6cc",
     "scanner_public_key_id": "vettcode-scanner-key-2026-03",
-    "scanner_signature": "eU3s6aI2Z+X9MtZR65vFn+NcNxPDP5vwy9p1/9Gsrgfl5rJT1xJGM32VSmSVWpkXpf8eouxyPlAbIcDQtVA0CA==",
+    "scanner_signature": "IvEYPS8y526o3z1GD2oUb11uSTtaWv6bZXTvhPqQb3tIYk37Em6AeqSFbDpchIFh2TeiOTav82WjayHkXeHxCw==",
     "cosign_nonce": null,
     "platform_cosignature": null,
     "platform_public_key_id": null,

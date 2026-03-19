@@ -53,8 +53,8 @@ func ScoreSecurity(in SecurityInput) float64 {
 		secrets = 100
 	} // else 0
 
-	cves := clamp(100 - float64(in.CVECritical)*30 - float64(in.CVEHigh)*15 -
-		float64(in.CVEMedium)*5 - float64(in.CVELow)*1)
+	cves := clamp(100 - float64(in.CVECritical)*50 - float64(in.CVEHigh)*25 -
+		float64(in.CVEMedium)*10 - float64(in.CVELow)*2)
 
 	licenses := clamp(100 - float64(in.LicenseIssueCount)*25)
 

@@ -25,7 +25,6 @@ func newTestScanResult() *models.ScanResult {
 		TechStack: models.TechStack{
 			Frameworks: []string{"Next.js", "FastAPI"},
 		},
-		RedFlags: models.RedFlags{Count: 0, Flags: []models.RedFlag{}},
 		Summary: models.Summary{
 			OverallGrade:     &grade,
 			ScoredCategories: []string{"security", "maintainability"},

@@ -77,7 +77,6 @@ func TestCLI_ScanHelp(t *testing.T) {
 	assert.Contains(t, output, "--timeout")
 	assert.Contains(t, output, "--ci")
 	assert.Contains(t, output, "--ci-threshold")
-	assert.Contains(t, output, "--ci-fail-on")
 }
 
 func TestCLI_VersionOutput(t *testing.T) {
@@ -262,23 +261,10 @@ func TestCLI_ScanFixtureNeglectedProject(t *testing.T) {
 	var result map[string]interface{}
 	require.NoError(t, json.Unmarshal(data, &result))
 
-	// Neglected project should have red flags
-	redFlags := result["red_flags"].(map[string]interface{})
-	flagCount := redFlags["count"].(float64)
-	assert.True(t, flagCount > 0, "neglected project should have red flags")
-
-	// Neglected project should have multiple red flags (at least 2: no_readme + others)
-	assert.True(t, flagCount >= 2,
-		"neglected project should have multiple red flags, got %v", flagCount)
-
-	// Should have no README red flag
-	flags := redFlags["flags"].([]interface{})
-	var flagCodes []string
-	for _, f := range flags {
-		flag := f.(map[string]interface{})
-		flagCodes = append(flagCodes, flag["flag"].(string))
-	}
-	assert.Contains(t, flagCodes, "no_readme", "neglected project should flag missing README")
+	// Neglected project should have low handoff readiness (no README, no tests)
+	metrics := result["metrics"].(map[string]interface{})
+	handoff := metrics["handoff_readiness"].(map[string]interface{})
+	assert.Equal(t, false, handoff["has_readme"], "neglected project should have no README")
 }
 
 func TestCLI_ScanFixtureSecurityNightmare(t *testing.T) {
@@ -304,15 +290,10 @@ func TestCLI_ScanFixtureSecurityNightmare(t *testing.T) {
 	secretsFound := sec["secrets_found"].(float64)
 	assert.True(t, secretsFound > 0, "security-nightmare should have secrets")
 
-	// Should have secrets_detected red flag
-	redFlags := result["red_flags"].(map[string]interface{})
-	flags := redFlags["flags"].([]interface{})
-	var flagCodes []string
-	for _, f := range flags {
-		flag := f.(map[string]interface{})
-		flagCodes = append(flagCodes, flag["flag"].(string))
-	}
-	assert.Contains(t, flagCodes, "secrets_detected", "security-nightmare should flag secrets")
+	// Secrets should contribute to a risk in the summary
+	summary := result["summary"].(map[string]interface{})
+	topRisks := summary["top_risks"].([]interface{})
+	assert.Greater(t, len(topRisks), 0, "security-nightmare should have top risks")
 }
 
 func TestCLI_ScanFixtureTier2Only(t *testing.T) {
@@ -410,31 +391,21 @@ func TestCLI_CIModeFailGrade(t *testing.T) {
 	assert.NoError(t, statErr, "JSON output should exist even when CI gate fails")
 }
 
-func TestCLI_CIModeFailRedFlags(t *testing.T) {
-	// Copy security-nightmare to temp dir (secrets scanner skips testdata/ paths)
-	fixture := testdata.FixturePath(testdata.SecurityNightmare)
-	tmpDir := t.TempDir()
-	scanDir := filepath.Join(tmpDir, "project")
-	copyDir(t, fixture, scanDir)
-
+func TestCLI_CIModeFailThresholdB(t *testing.T) {
+	// Use neglected project which should get a low grade
+	fixture := testdata.FixturePath(testdata.NeglectedProject)
 	tmpOut := filepath.Join(t.TempDir(), "scan.json")
-	_, err := execCLI(t, "scan", scanDir, "--offline", "--ci", "--ci-threshold", "F", "--format", "json", "-q", "-o", tmpOut)
-	require.Error(t, err, "CI mode should fail on critical red flags even with F threshold")
+	_, err := execCLI(t, "scan", fixture, "--offline", "--ci", "--ci-threshold", "B", "--format", "json", "-q", "-o", tmpOut)
+	require.Error(t, err, "CI mode should fail when threshold is B and grade is lower")
 	var ciErr *CIGateError
 	assert.ErrorAs(t, err, &ciErr)
-	assert.Contains(t, ciErr.Error(), "secrets_detected")
+	assert.Contains(t, ciErr.Error(), "below threshold B")
 }
 
 func TestCLI_CIModeInvalidThreshold(t *testing.T) {
 	_, err := execCLI(t, "scan", ".", "--offline", "--ci", "--ci-threshold", "Z", "-q")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid --ci-threshold")
-}
-
-func TestCLI_CIModeInvalidFailOn(t *testing.T) {
-	_, err := execCLI(t, "scan", ".", "--offline", "--ci", "--ci-fail-on", "none", "-q")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid --ci-fail-on")
 }
 
 func TestCLI_ScanInvalidOutputPath(t *testing.T) {

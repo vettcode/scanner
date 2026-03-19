@@ -99,13 +99,6 @@ func fullTestResult() *models.ScanResult {
 				MonitoringDetected: false,
 			},
 		},
-		RedFlags: models.RedFlags{
-			Count: 2,
-			Flags: []models.RedFlag{
-				{Flag: models.RedFlagCriticalCVE, Detail: "1 critical/high CVE in dependencies", Severity: models.SeverityCritical},
-				{Flag: models.RedFlagNoCICD, Detail: "No CI/CD pipeline detected", Severity: models.SeverityMedium},
-			},
-		},
 		Summary: models.Summary{
 			OverallGrade: &gradeB,
 		},
@@ -139,10 +132,6 @@ func TestTerminalFormatter_Format_ContainsAllSections(t *testing.T) {
 
 	// Duration
 	assert.Contains(t, out, "2m15s")
-
-	// Red flags
-	assert.Contains(t, out, "2 found")
-	assert.Contains(t, out, "critical/high CVE")
 
 	// Maintainability
 	assert.Contains(t, out, "MAINTAINABILITY")
@@ -222,7 +211,6 @@ func TestTerminalFormatter_NilSections(t *testing.T) {
 		RepoCount: 1,
 		TotalLOC:  1000,
 		Metrics:   models.Metrics{},    // all nil
-		RedFlags:  models.RedFlags{},
 		Summary:   models.Summary{},
 		Warnings:  []models.Warning{},
 	}
@@ -237,7 +225,6 @@ func TestTerminalFormatter_NilSections(t *testing.T) {
 
 	// Should show N/A for nil sections
 	assert.Contains(t, out, "N/A")
-	assert.Contains(t, out, "None") // no red flags
 }
 
 func TestFormatNumber(t *testing.T) {

@@ -83,11 +83,12 @@ Every analyzer has unit tests with fixture inputs and expected outputs.
 - Test overall grade with known category scores and weights (Security 25%, Maintainability 20%, Handoff 20%, Activity 15%, Dependency Health 10%, SRE 10%) `COVERED` — `TestOverallScore_AllCategories`, `_Weighted`
 - Test N/A handling: if a category is N/A, remaining weights are renormalized and overall grade computed from scored categories only `COVERED` — `TestOverallScore_MissingCategory_Renormalized`, `_NonUniform`
 
-**Red Flags:** `COVERED`
+**Improvement Tips (terminal output):** `COVERED`
 
-- Test each red flag independently: `secrets_detected` (count > 0), `critical_cve` (critical/high CVEs), `no_tests` (0% coverage), `no_ci_cd`, `stale_repo` (>6 months), `no_readme`, `unmaintained_deps` (>50%), `no_git_history` (no .git) `COVERED` — all 8 flags tested independently in `redflags_test.go`, with exact threshold tests (180 days, 50% unmaintained, 1% tiny coverage not flagged)
-- Test combinations of red flags `COVERED` — `TestEvaluateRedFlags_Multiple` (all 8 simultaneous), `_SecurityCombo`, `_ProcessCombo`
-- Test that red flags use OR logic across repos in multi-repo scans (one bad repo triggers flag for entire scan) `PARTIAL` — `TestAggregate_MultiRepo_NoTestsRedFlag_LOCWeightedAverage` documents that `EstTestCoveragePct` uses LOC-weighted average (not strict OR logic); comment notes spec ambiguity. Strict OR-logic for sum-based metrics (secrets, CVEs) is inherent in aggregation.
+- Tips are generated based on metric triggers (secrets > 0, critical CVEs > 0, test coverage < 1%, no README, days since commit > 180, unmaintained deps >= 50%, no CI/CD)
+- Tips are only shown in terminal output, NOT included in JSON
+- Tips are shown after category grades, before overall grade
+- Verify tips appear when trigger conditions are met and are absent when conditions are not met
 
 **Integrity & Signing:** `COVERED`
 
@@ -135,14 +136,14 @@ Every analyzer has unit tests with fixture inputs and expected outputs.
 **Multi-repo scan:** `PARTIAL`
 
 - Three fixture directories simulating a real multi-repo product (e.g., JS/TS frontend, Python backend, Go microservice) `TODO` — no dedicated multi-repo integration test with 3 separate fixture dirs
-- Assert aggregation rules match spec Section 5.9: LOC summed, complexity LOC-weighted average, red flags OR-logic, contributors deduplicated by email, duplication rerun cross-repo `PARTIAL` — aggregation rules tested in unit tests (`aggregator_test.go`), but not via an end-to-end multi-repo scan
-- Test: one repo with 0 tests + another with 80% → red flag `no_tests` still triggers (OR logic) `PARTIAL` — `TestAggregate_MultiRepo_NoTestsRedFlag_LOCWeightedAverage` shows LOC-weighted average (60%) does NOT trigger `no_tests`, documenting spec ambiguity
+- Assert aggregation rules match spec Section 5.9: LOC summed, complexity LOC-weighted average, contributors deduplicated by email, duplication rerun cross-repo `PARTIAL` — aggregation rules tested in unit tests (`aggregator_test.go`), but not via an end-to-end multi-repo scan
+- Test: one repo with 0 tests + another with 80% → LOC-weighted average coverage is 60% `COVERED` — `TestAggregate_MultiRepo_TestCoverage_LOCWeightedAverage`
 - Assert cross-repo duplication detection works (identical code across repos detected) `TODO` — no cross-repo duplication integration test
 
 **JSON output validation (9a schema completeness):** `MOSTLY COVERED`
 
 - Scan fixture repos, parse output JSON, validate against 9a schema (Product Overview Section 9) `COVERED` — `TestJSONOutputValidation` in `integration_test.go`
-- Assert all top-level required fields present: `version`, `scan_id`, `timestamp`, `scanner_version`, `repositories`, `total_loc`, `total_file_count`, `repo_count`, `tech_stack`, `metrics`, `activity`, `detection`, `red_flags`, `summary`, `pricing_tier`, `warnings`, `integrity` `COVERED` — `TestJSONOutputValidation` asserts all these fields
+- Assert all top-level required fields present: `version`, `scan_id`, `timestamp`, `scanner_version`, `repositories`, `total_loc`, `total_file_count`, `repo_count`, `tech_stack`, `metrics`, `activity`, `detection`, `summary`, `pricing_tier`, `warnings`, `integrity` `COVERED` — `TestJSONOutputValidation` asserts all these fields
 - Assert per-repository fields: `name`, `path_hash`, `head_commit_sha`, `languages`, `file_count`, `loc`, `status`, `detected_languages` `COVERED` — `TestJSONOutputValidation` includes `head_commit_sha` and `detected_languages`
 - Assert `head_commit_sha` is captured per repo (needed for V2 dedup fingerprinting) `COVERED`
 - Assert `detected_languages` includes unsupported languages (e.g., Swift in a mixed repo) `TODO` — no fixture with an unsupported-only language mixed in
@@ -196,8 +197,8 @@ Every analyzer has unit tests with fixture inputs and expected outputs.
 **Fixture repos with known scores:** `MOSTLY COVERED`
 
 - "healthy-saas" fixture (JS/TS + Python): expect maintainability B+ to A-, security A- `COVERED` — `TestCLI_ScanFixtureHealthySaas` asserts maintainability grade >= C (relaxed from spec's B+ to A- range)
-- "neglected-project" fixture (PHP): expect red flags for stale repo, no tests, no CI/CD `COVERED` — `TestCLI_ScanFixtureNeglectedProject` asserts >= 2 red flags including `no_readme`
-- "security-nightmare" fixture (Ruby): expect red flags for secrets, critical CVEs `COVERED` — `TestCLI_ScanFixtureSecurityNightmare` asserts `secrets_detected` red flag
+- "neglected-project" fixture (PHP): expect low handoff readiness (no README, no tests, no CI/CD) `COVERED` — `TestCLI_ScanFixtureNeglectedProject` asserts no README
+- "security-nightmare" fixture (Ruby): expect secrets detected and top risks `COVERED` — `TestCLI_ScanFixtureSecurityNightmare` asserts secrets found and top risks present
 - "java-enterprise" fixture (Java + Go): expect correct multi-language analysis, Maven/Gradle dependency parsing `COVERED` — `TestCLI_ScanFixtureJavaEnterprise` asserts Java detected + multi-language
 - "tier2-only" fixture (HTML + CSS + YAML only): expect LOC and tech stack reported, complexity/dependency scores marked N/A `PARTIAL` — `TestCLI_ScanFixtureTier2Only` asserts positive LOC; does not explicitly verify N/A scores
 
@@ -348,7 +349,7 @@ All fixture repos are embedded in the scanner repo under `testdata/` and checked
 | --- | --- | --- | --- | --- | --- |
 | `healthy-saas` | JS/TS + Python | ~5K | Baseline healthy project | Clean code (avg complexity ~6), 60%+ test files, GitHub Actions CI, Dockerfile, README, .env.example, `package.json` with `openai` (AI detection), no secrets, no critical CVEs, 2 medium CVEs in lockfile | `PRESENT` |
 | `neglected-project` | PHP | ~3K | Stale, untested project | Last commit >8 months ago (use static fixture date), zero test files, no CI/CD config, no README, high complexity (avg ~18), 60% unmaintained deps, GPL license in one dep | `PRESENT` |
-| `security-nightmare` | Ruby | ~2K | Security red flags | 3 planted secrets (AWS key `AKIA...`, GitHub PAT `ghp_...`, PEM key), 2 critical CVEs + 3 high CVEs in Gemfile.lock, copyleft license issue | `PRESENT` |
+| `security-nightmare` | Ruby | ~2K | Security issues | 3 planted secrets (AWS key `AKIA...`, GitHub PAT `ghp_...`, PEM key), 2 critical CVEs + 3 high CVEs in Gemfile.lock, copyleft license issue | `PRESENT` |
 | `java-enterprise` | Java + Go | ~4K | Multi-language, multi-build | Maven `pom.xml` + Go `go.mod`, moderate complexity, test files in both languages, Terraform + Docker for IaC | `PRESENT` |
 | `tier2-only` | HTML + CSS + YAML | ~1K | No Tier 1 languages | Only Tier 2 files, no complexity/dependency scoring possible, tech stack and LOC reported | `PRESENT` |
 

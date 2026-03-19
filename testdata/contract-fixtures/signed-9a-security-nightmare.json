@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "scan_id": "contract-test-security-nightmare",
-  "timestamp": "2026-03-19T03:15:41Z",
+  "timestamp": "2026-03-19T04:22:41Z",
   "scanner_version": "0.1.0-test",
   "repositories": [
     {
@@ -115,26 +115,6 @@
       "monitoring_tools": []
     }
   },
-  "red_flags": {
-    "count": 3,
-    "flags": [
-      {
-        "flag": "secrets_detected",
-        "detail": "1 hardcoded secrets found",
-        "severity": "critical"
-      },
-      {
-        "flag": "no_ci_cd",
-        "detail": "No CI/CD pipeline detected",
-        "severity": "medium"
-      },
-      {
-        "flag": "no_git_history",
-        "detail": "No git history detected (Development Activity: N/A)",
-        "severity": "high"
-      }
-    ]
-  },
   "summary": {
     "scored_categories": [
       "maintainability",
@@ -152,9 +132,9 @@
   },
   "warnings": [],
   "integrity": {
-    "scan_checksum": "0c53ca9714b56913c18b088c7a4108d20ca4b1b014df0d9507c48787f2ed7efe",
+    "scan_checksum": "98777edbe725cb599b845dc0aa8d445eca8529f267c8b8c1ef9a68e2b4e41437",
     "scanner_public_key_id": "vettcode-scanner-key-2026-03",
-    "scanner_signature": "LYmMzbx0BrI7J+jjR4pm9doaIN5mV/twdPKmuTNqueQYqMnVz49q3b6wqNQBeVR1gnWvDB9u1XcLvwM7caj7AQ==",
+    "scanner_signature": "6YmmJHDZewWu+p3ZZKPf4WIEmXX/9hGsYrNHjWtijV7xCBiY+8D5Szy/+pxHKISAcjw8Pcd70ilw/Hrs3E1xCg==",
     "cosign_nonce": null,
     "platform_cosignature": null,
     "platform_public_key_id": null,

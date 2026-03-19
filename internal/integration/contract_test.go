@@ -84,10 +84,6 @@ type scoringFixture struct {
 	OverallScore         float64      `json:"overall_score"`
 	OverallGrade         models.Grade `json:"overall_grade"`
 
-	// Red flags
-	RedFlagCount int                `json:"red_flag_count"`
-	RedFlagCodes []models.RedFlagCode `json:"red_flag_codes"`
-
 	// Pricing
 	PricingTier models.PricingTierName `json:"pricing_tier"`
 }
@@ -261,17 +257,6 @@ func TestGenerateContractFixtures(t *testing.T) {
 			}
 			overallScore := scorer.OverallScore(categoryScores)
 			overallGrade := scorer.ScoreToGrade(overallScore)
-
-			// ----- Red flags -----
-			redFlags := scorer.EvaluateRedFlags(scorer.RedFlagInput{
-				SecretsCount:       secretsResult.SecretsCount,
-				CVECritical:        cveResult.Summary.Critical,
-				CVEHigh:            cveResult.Summary.High,
-				EstTestCoveragePct: handoffResult.EstTestCoveragePct,
-				CICDDetected:       infraResult.HasCICD,
-				HasReadme:          handoffResult.HasReadme,
-				HasGitHistory:      false, // fixtures have no real git history
-			})
 
 			// ----- Pricing tier -----
 			pricingTier := scorer.DeterminePricingTier(walkResult.TotalLOC)
@@ -462,7 +447,6 @@ func TestGenerateContractFixtures(t *testing.T) {
 						MonitoringTools:    infraResult.MonitorTools,
 					},
 				},
-				RedFlags:    redFlags,
 				Summary:     summaryOut,
 				PricingTier: pricingTier,
 				Warnings:    []models.Warning{},
@@ -474,9 +458,6 @@ func TestGenerateContractFixtures(t *testing.T) {
 			}
 			if result.Metrics.Maintainability.HotspotFiles == nil {
 				result.Metrics.Maintainability.HotspotFiles = []models.HotspotFile{}
-			}
-			if result.RedFlags.Flags == nil {
-				result.RedFlags.Flags = []models.RedFlag{}
 			}
 			if result.Detection.Infrastructure.IaCTypes == nil {
 				result.Detection.Infrastructure.IaCTypes = []string{}
@@ -518,11 +499,6 @@ func TestGenerateContractFixtures(t *testing.T) {
 			assert.Equal(t, output.ScannerKeyID, roundTrip.Integrity.ScannerPublicKeyID)
 
 			// ----- Build scoring fixture -----
-			var flagCodes []models.RedFlagCode
-			for _, f := range redFlags.Flags {
-				flagCodes = append(flagCodes, f.Flag)
-			}
-
 			sf := scoringFixture{
 				Name:               spec.name,
 				AvgComplexity:      summary.AvgComplexity,
@@ -557,9 +533,6 @@ func TestGenerateContractFixtures(t *testing.T) {
 				InfraGrade:           infraGrade,
 				OverallScore:         overallScore,
 				OverallGrade:         overallGrade,
-
-				RedFlagCount: redFlags.Count,
-				RedFlagCodes: flagCodes,
 
 				PricingTier: pricingTier.Tier,
 			}

@@ -92,15 +92,21 @@ func TestScoreSecurity_SecretsFound(t *testing.T) {
 
 func TestScoreSecurity_OneCriticalCVE(t *testing.T) {
 	score := ScoreSecurity(SecurityInput{CVECritical: 1})
-	// secrets=100, cves=70, licenses=100 → 100*0.35 + 70*0.45 + 100*0.20 = 35+31.5+20 = 86.5
-	assert.InDelta(t, 86.5, score, 0.01)
+	// secrets=100, cves=50, licenses=100 → 100*0.35 + 50*0.45 + 100*0.20 = 35+22.5+20 = 77.5
+	assert.InDelta(t, 77.5, score, 0.01)
 }
 
 func TestScoreSecurity_TwoCriticalCVEs(t *testing.T) {
 	score := ScoreSecurity(SecurityInput{CVECritical: 2})
-	// cves = max(0, 100 - 60) = 40
-	// 100*0.35 + 40*0.45 + 100*0.20 = 35+18+20 = 73
-	assert.InDelta(t, 73.0, score, 0.01)
+	// cves = max(0, 100 - 100) = 0
+	// 100*0.35 + 0*0.45 + 100*0.20 = 35+0+20 = 55
+	assert.InDelta(t, 55.0, score, 0.01)
+}
+
+func TestScoreSecurity_OneHighCVE(t *testing.T) {
+	score := ScoreSecurity(SecurityInput{CVEHigh: 1})
+	// secrets=100, cves=75, licenses=100 → 100*0.35 + 75*0.45 + 100*0.20 = 35+33.75+20 = 88.75
+	assert.InDelta(t, 88.75, score, 0.01)
 }
 
 func TestScoreSecurity_LicenseIssues(t *testing.T) {

@@ -80,14 +80,11 @@ vettcode scan . -o ~/Desktop/my-scan.json
 Use `--ci` to fail pipelines on quality gates:
 
 ```bash
-# Fail if overall grade < C or critical red flags found
+# Fail if overall grade < C
 vettcode scan . --ci
 
 # Stricter: require grade B+
 vettcode scan . --ci --ci-threshold B+
-
-# Fail on any red flag (not just critical)
-vettcode scan . --ci --ci-fail-on medium
 ```
 
 Exit codes: `0` = pass, `1` = quality gate failed or scan error.
@@ -116,22 +113,6 @@ Exit codes: `0` = pass, `1` = quality gate failed or scan error.
 | `--timeout` | `30m` | Maximum scan duration |
 | `--ci` | `false` | Enable CI quality gate |
 | `--ci-threshold` | `C` | Minimum grade to pass CI |
-| `--ci-fail-on` | `critical` | Red flag severity that fails CI |
-
-## Red Flags
-
-The scanner evaluates 8 deal-killer conditions:
-
-| Flag | Severity | Trigger |
-|------|----------|---------|
-| Secrets detected | Critical | Any hardcoded secret found |
-| Critical/High CVEs | Critical | Known vulnerabilities in dependencies |
-| No tests | High | Zero test coverage detected |
-| Stale repository | High | No commits in 180+ days |
-| Unmaintained deps | High | 50%+ dependencies older than 2 years |
-| No git history | High | Repository has no git history |
-| No CI/CD | Medium | No CI/CD pipeline detected |
-| No README | Medium | No README file found |
 
 ## Privacy
 

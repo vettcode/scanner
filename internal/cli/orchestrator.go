@@ -453,19 +453,6 @@ func runScan(cmd *cobra.Command, args []string) error {
 	overall := scorer.OverallScore(categoryScores)
 	overallGrade := scorer.ScoreToGrade(overall)
 
-	// Red flags
-	redFlags := scorer.EvaluateRedFlags(scorer.RedFlagInput{
-		SecretsCount:        agg.SecretsCount,
-		CVECritical:         agg.CVECritical,
-		CVEHigh:             agg.CVEHigh,
-		EstTestCoveragePct:  agg.EstTestCoveragePct,
-		DaysSinceLastCommit: agg.DaysSinceLastCommit,
-		UnmaintainedPct:     agg.UnmaintainedPct,
-		CICDDetected:        agg.CICDDetected,
-		HasReadme:           agg.HasReadme,
-		HasGitHistory:       agg.HasGitHistory,
-	})
-
 	// Pricing tier
 	pricingTier := scorer.DeterminePricingTier(totalLOC)
 
@@ -528,7 +515,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	// Build top risks and strengths
-	topRisks := buildTopRisks(redFlags, agg)
+	topRisks := buildTopRisks(agg)
 	topStrengths := buildTopStrengths(maintScore, secScore, handoffScore, infraScore, agg)
 
 	// Build summary
@@ -589,7 +576,6 @@ func runScan(cmd *cobra.Command, args []string) error {
 		},
 		Activity:    activityMetric,
 		Detection:   detection,
-		RedFlags:    redFlags,
 		Summary:     summary,
 		PricingTier: pricingTier,
 		Warnings:    allWarnings,
@@ -613,9 +599,6 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 	if result.Summary.TopStrengths == nil {
 		result.Summary.TopStrengths = []models.Strength{}
-	}
-	if result.RedFlags.Flags == nil {
-		result.RedFlags.Flags = []models.RedFlag{}
 	}
 	if result.TechStack.Frameworks == nil {
 		result.TechStack.Frameworks = []string{}
@@ -709,6 +692,7 @@ func (e *CIGateError) Error() string {
 }
 
 // checkCIGate evaluates the scan result against CI thresholds.
+// Fails if the overall grade is below the --ci-threshold grade.
 func checkCIGate(cmd *cobra.Command, result *models.ScanResult, cfg *config.Config) error {
 	var reasons []string
 
@@ -723,15 +707,6 @@ func checkCIGate(cmd *cobra.Command, result *models.ScanResult, cfg *config.Conf
 		reasons = append(reasons, fmt.Sprintf("no overall grade computed, threshold is %s", threshold))
 	}
 
-	// Check red flags at or above the configured severity
-	minSeverity := severityRank(models.Severity(cfg.CIFailOn))
-	for _, flag := range result.RedFlags.Flags {
-		if severityRank(flag.Severity) >= minSeverity {
-			reasons = append(reasons, fmt.Sprintf("red flag [%s] %s: %s",
-				flag.Severity, flag.Flag, flag.Detail))
-		}
-	}
-
 	if len(reasons) > 0 {
 		w := cmd.ErrOrStderr()
 		fmt.Fprintln(w, "\nCI Quality Gate: FAILED")
@@ -743,22 +718,6 @@ func checkCIGate(cmd *cobra.Command, result *models.ScanResult, cfg *config.Conf
 
 	fmt.Fprintln(cmd.ErrOrStderr(), "\nCI Quality Gate: PASSED")
 	return nil
-}
-
-// severityRank returns a numeric rank for severity comparison (higher = more severe).
-func severityRank(s models.Severity) int {
-	switch s {
-	case models.SeverityCritical:
-		return 4
-	case models.SeverityHigh:
-		return 3
-	case models.SeverityMedium:
-		return 2
-	case models.SeverityLow:
-		return 1
-	default:
-		return 0
-	}
 }
 
 // generateUUID generates a UUID v4 using crypto/rand.
@@ -940,29 +899,67 @@ func mergeActivity(existing *activity.Result, next *activity.Result) *activity.R
 	return existing
 }
 
-// buildTopRisks extracts the most important risks from red flags and metrics.
-func buildTopRisks(flags models.RedFlags, agg scorer.AggregatedMetrics) []models.Risk {
+// buildTopRisks derives top risks from aggregated metrics.
+func buildTopRisks(agg scorer.AggregatedMetrics) []models.Risk {
 	var risks []models.Risk
-	for _, f := range flags.Flags {
-		category := "general"
-		switch f.Flag {
-		case models.RedFlagSecretsDetected, models.RedFlagCriticalCVE:
-			category = "security"
-		case models.RedFlagNoTests, models.RedFlagNoReadme:
-			category = "handoff_readiness"
-		case models.RedFlagStaleRepo, models.RedFlagNoGitHistory:
-			category = "development_activity"
-		case models.RedFlagUnmaintainedDeps:
-			category = "dependency_health"
-		case models.RedFlagNoCICD:
-			category = "sre_infrastructure"
-		}
+
+	if agg.SecretsCount > 0 {
 		risks = append(risks, models.Risk{
-			Category: category,
-			Issue:    f.Detail,
-			Severity: f.Severity,
+			Category: "security",
+			Issue:    fmt.Sprintf("%d hardcoded secrets found", agg.SecretsCount),
+			Severity: models.SeverityCritical,
 		})
 	}
+	if agg.CVECritical > 0 {
+		risks = append(risks, models.Risk{
+			Category: "security",
+			Issue:    fmt.Sprintf("%d critical CVEs found", agg.CVECritical),
+			Severity: models.SeverityCritical,
+		})
+	}
+	if !agg.HasGitHistory {
+		risks = append(risks, models.Risk{
+			Category: "development_activity",
+			Issue:    "No git history detected",
+			Severity: models.SeverityHigh,
+		})
+	}
+	if agg.EstTestCoveragePct < 1 {
+		risks = append(risks, models.Risk{
+			Category: "handoff_readiness",
+			Issue:    "No test coverage detected",
+			Severity: models.SeverityHigh,
+		})
+	}
+	if agg.DaysSinceLastCommit > 180 {
+		risks = append(risks, models.Risk{
+			Category: "development_activity",
+			Issue:    fmt.Sprintf("Last commit %d days ago", agg.DaysSinceLastCommit),
+			Severity: models.SeverityHigh,
+		})
+	}
+	if agg.UnmaintainedPct >= 50 {
+		risks = append(risks, models.Risk{
+			Category: "dependency_health",
+			Issue:    fmt.Sprintf("%.0f%% of dependencies unmaintained", agg.UnmaintainedPct),
+			Severity: models.SeverityHigh,
+		})
+	}
+	if !agg.CICDDetected {
+		risks = append(risks, models.Risk{
+			Category: "sre_infrastructure",
+			Issue:    "No CI/CD pipeline detected",
+			Severity: models.SeverityMedium,
+		})
+	}
+	if !agg.HasReadme {
+		risks = append(risks, models.Risk{
+			Category: "handoff_readiness",
+			Issue:    "No README found",
+			Severity: models.SeverityLow,
+		})
+	}
+
 	// Limit to top 5
 	if len(risks) > 5 {
 		risks = risks[:5]

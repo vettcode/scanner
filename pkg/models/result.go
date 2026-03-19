@@ -14,7 +14,6 @@ type ScanResult struct {
 	Metrics        Metrics         `json:"metrics"`
 	Activity       *Activity       `json:"activity"`
 	Detection      Detection       `json:"detection"`
-	RedFlags       RedFlags        `json:"red_flags"`
 	Summary        Summary         `json:"summary"`
 	PricingTier    PricingTier     `json:"pricing_tier"`
 	Warnings       []Warning       `json:"warnings"`
@@ -216,19 +215,6 @@ type InfrastructureDetection struct {
 	CICDProvider     string   `json:"ci_cd_provider,omitempty"`
 	MonitoringDetected bool   `json:"monitoring_detected"`
 	MonitoringTools  []string `json:"monitoring_tools"`
-}
-
-// RedFlags contains triggered red flags.
-type RedFlags struct {
-	Count int       `json:"count"`
-	Flags []RedFlag `json:"flags"`
-}
-
-// RedFlag represents a single triggered red flag.
-type RedFlag struct {
-	Flag     RedFlagCode `json:"flag"`
-	Detail   string      `json:"detail"`
-	Severity Severity    `json:"severity"`
 }
 
 // Summary contains the overall assessment.

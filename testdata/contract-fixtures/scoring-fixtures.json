@@ -32,10 +32,6 @@
     "infra_grade": "A-",
     "overall_score": 93.25856697819314,
     "overall_grade": "A",
-    "red_flag_count": 1,
-    "red_flag_codes": [
-      "no_git_history"
-    ],
     "pricing_tier": "starter"
   },
   {
@@ -71,13 +67,6 @@
     "infra_grade": "F",
     "overall_score": 68.66666666666667,
     "overall_grade": "D+",
-    "red_flag_count": 4,
-    "red_flag_codes": [
-      "no_tests",
-      "no_ci_cd",
-      "no_readme",
-      "no_git_history"
-    ],
     "pricing_tier": "starter"
   },
   {
@@ -113,12 +102,6 @@
     "infra_grade": "F",
     "overall_score": 68.12280701754386,
     "overall_grade": "D+",
-    "red_flag_count": 3,
-    "red_flag_codes": [
-      "secrets_detected",
-      "no_ci_cd",
-      "no_git_history"
-    ],
     "pricing_tier": "starter"
   }
 ]

@@ -183,18 +183,9 @@ func TestAggregate_MultiRepo_ContributorCount(t *testing.T) {
 	// This test exists to document that design decision.
 }
 
-// TestAggregate_MultiRepo_NoTestsRedFlag_LOCWeightedAverage demonstrates that
-// the no_tests red flag uses the LOC-weighted average of EstTestCoveragePct
-// across all repos, rather than triggering if any single repo has 0% coverage.
-//
-// Design note: The spec says "one bad repo triggers flag for entire scan" for
-// some red flags (e.g., secrets_detected, critical_cve — these use sum/count
-// aggregation). However, EstTestCoveragePct uses LOC-weighted average, which
-// means a large repo with good test coverage can mask a smaller repo with zero
-// tests. This is a deliberate design decision: the LOC-weighted average reflects
-// the overall project's testing posture rather than penalizing multi-repo scans
-// where a small utility repo might legitimately have no tests.
-func TestAggregate_MultiRepo_NoTestsRedFlag_LOCWeightedAverage(t *testing.T) {
+// TestAggregate_MultiRepo_TestCoverage_LOCWeightedAverage demonstrates that
+// EstTestCoveragePct uses the LOC-weighted average across all repos.
+func TestAggregate_MultiRepo_TestCoverage_LOCWeightedAverage(t *testing.T) {
 	repos := []RepoMetrics{
 		{LOC: 1000, EstTestCoveragePct: 0.0},   // Repo 1: zero test coverage
 		{LOC: 3000, EstTestCoveragePct: 80.0},   // Repo 2: good test coverage
@@ -204,23 +195,6 @@ func TestAggregate_MultiRepo_NoTestsRedFlag_LOCWeightedAverage(t *testing.T) {
 	// LOC-weighted average: 0*0.25 + 80*0.75 = 60%
 	assert.InDelta(t, 60.0, agg.EstTestCoveragePct, 0.01,
 		"LOC-weighted average should be 60%% (0%%*0.25 + 80%%*0.75)")
-
-	// With 60% aggregated coverage, the no_tests red flag should NOT trigger
-	// (threshold is < 0.01%)
-	redFlags := EvaluateRedFlags(RedFlagInput{
-		EstTestCoveragePct: agg.EstTestCoveragePct,
-		CICDDetected:       true,
-		HasReadme:          true,
-		HasGitHistory:      true,
-	})
-
-	// Verify no_tests is NOT in the triggered flags
-	for _, f := range redFlags.Flags {
-		assert.NotEqual(t, models.RedFlagNoTests, f.Flag,
-			"no_tests should NOT trigger when LOC-weighted average coverage is 60%%")
-	}
-	assert.Equal(t, 0, redFlags.Count,
-		"no red flags should trigger with 60%% aggregated test coverage and all other flags satisfied")
 }
 
 func TestAggregate_MedianAgeMonths_Rounding(t *testing.T) {

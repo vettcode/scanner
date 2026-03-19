@@ -31,7 +31,6 @@ type Config struct {
 	// CI/CD integration mode
 	CI            bool
 	CIThreshold   string // minimum grade to pass (e.g. "C")
-	CIFailOn      string // red flag severity that causes failure
 
 	// Directories
 	Home string // VETTCODE_HOME, default ~/.vettcode
@@ -101,11 +100,6 @@ func Load(cmd *cobra.Command) (*Config, error) {
 			} else {
 				cfg.CIThreshold = "C"
 			}
-			if flags.Changed("ci-fail-on") {
-				cfg.CIFailOn, _ = flags.GetString("ci-fail-on")
-			} else {
-				cfg.CIFailOn = "critical"
-			}
 		}
 	}
 
@@ -140,12 +134,6 @@ func Load(cmd *cobra.Command) (*Config, error) {
 	if cfg.CI {
 		if !isValidGrade(cfg.CIThreshold) {
 			return nil, fmt.Errorf("invalid --ci-threshold value %q: must be a grade (A, A-, B+, B, B-, C+, C, C-, D+, D, D-, F)", cfg.CIThreshold)
-		}
-		switch cfg.CIFailOn {
-		case "critical", "high", "medium", "low":
-			// valid
-		default:
-			return nil, fmt.Errorf("invalid --ci-fail-on value %q: must be critical, high, medium, or low", cfg.CIFailOn)
 		}
 	}
 

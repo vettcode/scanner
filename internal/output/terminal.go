@@ -52,25 +52,24 @@ func (f *TerminalFormatter) Format(w io.Writer, result *models.ScanResult) {
 		fmt.Fprintf(w, "Scan Duration: %s\n", formatDuration(f.Duration))
 	}
 
-	// Red flags
+	// Category sections — ordered by importance to buyers
 	fmt.Fprintln(w)
-	f.formatRedFlags(w, result.RedFlags)
-
-	// Category sections
-	fmt.Fprintln(w)
-	f.formatMaintainability(w, result.Metrics.Maintainability)
+	f.formatHandoff(w, result.Metrics.HandoffReadiness)
 	fmt.Fprintln(w)
 	f.formatSecurity(w, result.Metrics.Security)
 	fmt.Fprintln(w)
+	f.formatMaintainability(w, result.Metrics.Maintainability)
+	fmt.Fprintln(w)
 	f.formatDependencyHealth(w, result.Metrics.DependencyHealth)
-	fmt.Fprintln(w)
-	f.formatActivity(w, result.Activity)
-	fmt.Fprintln(w)
-	f.formatAIDetection(w, result.Detection.AI)
 	fmt.Fprintln(w)
 	f.formatInfrastructure(w, result.Detection.Infrastructure, result.TechStack.ExternalServices)
 	fmt.Fprintln(w)
-	f.formatHandoff(w, result.Metrics.HandoffReadiness)
+	f.formatAIDetection(w, result.Detection.AI)
+	fmt.Fprintln(w)
+	f.formatActivity(w, result.Activity)
+
+	// Improvement tips (terminal only)
+	f.formatImprovementTips(w, result)
 
 	// Overall grade
 	fmt.Fprintln(w)
@@ -92,19 +91,6 @@ func (f *TerminalFormatter) Format(w io.Writer, result *models.ScanResult) {
 	fmt.Fprintln(w, c.gray("AI-powered insights: defensibility scoring, architecture"))
 	fmt.Fprintln(w, c.gray("risk analysis, hidden tech debt estimates, and a 90-day"))
 	fmt.Fprintf(w, "%s\n", c.gray("post-acquisition action plan. → vettcode.com/deep"))
-}
-
-func (f *TerminalFormatter) formatRedFlags(w io.Writer, rf models.RedFlags) {
-	c := f.Color
-	if rf.Count == 0 {
-		fmt.Fprintf(w, "%s     %s\n", c.bold("RED FLAGS:"), c.green("None"))
-		return
-	}
-	fmt.Fprintf(w, "%s     %s\n", c.bold("RED FLAGS:"), c.red(fmt.Sprintf("%d found", rf.Count)))
-	for _, flag := range rf.Flags {
-		severity := c.severityColor(string(flag.Severity))
-		fmt.Fprintf(w, "  [%s] %s\n", severity, flag.Detail)
-	}
 }
 
 func (f *TerminalFormatter) formatMaintainability(w io.Writer, m *models.Maintainability) {
@@ -245,6 +231,66 @@ func (f *TerminalFormatter) formatHandoff(w io.Writer, h *models.HandoffReadines
 	fmt.Fprintf(w, "  Est. Test Coverage:    %.0f%%\n", h.EstTestCoveragePct)
 	fmt.Fprintf(w, "  Doc Density:           %s\n", titleCase(string(h.DocDensity)))
 	fmt.Fprintf(w, "  Env Vars:              %d\n", h.EnvVarCount)
+}
+
+// formatImprovementTips shows constructive tips based on which metrics
+// dragged the score down. Terminal display only — not included in JSON output.
+func (f *TerminalFormatter) formatImprovementTips(w io.Writer, result *models.ScanResult) {
+	c := f.Color
+	var tips []string
+
+	// Security tips
+	if result.Metrics.Security != nil {
+		if result.Metrics.Security.SecretsFound > 0 {
+			tips = append(tips, "Remove hardcoded credentials and rotate any exposed keys.")
+		}
+		if result.Metrics.Security.CVESummary.Critical > 0 || result.Metrics.Security.CVESummary.High > 0 {
+			tips = append(tips, "Update dependencies with known vulnerabilities.")
+		}
+	}
+
+	// Handoff Readiness tips
+	if result.Metrics.HandoffReadiness != nil {
+		if result.Metrics.HandoffReadiness.EstTestCoveragePct < 1 {
+			tips = append(tips, "Adding test coverage would significantly improve Handoff Readiness.")
+		}
+		if !result.Metrics.HandoffReadiness.HasReadme {
+			tips = append(tips, "Adding a README helps buyers understand your project.")
+		}
+	}
+
+	// Maintainability tips
+	if result.Metrics.Maintainability != nil && len(result.Metrics.Maintainability.HotspotFiles) > 0 {
+		tips = append(tips, "Hotspot file paths are shown for convenience only and are not included in the signed report.")
+	}
+
+	// Dependency Health tips
+	if result.Metrics.DependencyHealth != nil && result.Metrics.DependencyHealth.UnmaintainedPct >= 50 {
+		tips = append(tips, "Updating outdated dependencies improves Dependency Health.")
+	}
+
+	// SRE/Infrastructure tips
+	if !result.Detection.Infrastructure.IaCDetected {
+		tips = append(tips, "IaC in a separate repo? Add it to the scan scope to improve Infrastructure.")
+	}
+	if !result.Detection.Infrastructure.CICDDetected {
+		tips = append(tips, "Setting up a CI/CD pipeline improves Infrastructure.")
+	}
+
+	// Activity tips
+	if result.Activity != nil && result.Activity.DaysSinceLastCommit > 180 {
+		tips = append(tips, "Recent commit activity improves your Development Activity score.")
+	}
+
+	if len(tips) == 0 {
+		return
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, c.yellow("Tips to improve your score:"))
+	for _, tip := range tips {
+		fmt.Fprintf(w, "  %s %s\n", c.yellow("*"), tip)
+	}
 }
 
 // Helpers

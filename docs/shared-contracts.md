@@ -47,8 +47,6 @@ Payment Type:        report | deep_scan
 Deal Value Response: confirmed | adjusted
 ```
 
-**Red Flag Codes:** `secrets_detected` | `critical_cve` | `no_tests` | `no_ci_cd` | `stale_repo` | `no_readme` | `unmaintained_deps` | `no_git_history`
-
 ---
 
 ## 3. Scored Categories & Weights

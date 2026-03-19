@@ -244,9 +244,9 @@ func TestTier2Only_NoComplexityScoring(t *testing.T) {
 	assert.True(t, infraResult.HasIaC, "tier2-only should detect IaC")
 }
 
-// TestNeglectedProject_RedFlags verifies the neglected-project fixture
-// triggers expected red flags.
-func TestNeglectedProject_RedFlags(t *testing.T) {
+// TestNeglectedProject_Metrics verifies the neglected-project fixture
+// has expected metric deficiencies.
+func TestNeglectedProject_Metrics(t *testing.T) {
 	root := testdata.FixturePath(testdata.NeglectedProject)
 	walkResult, err := walker.Walk(root)
 	require.NoError(t, err)
@@ -264,27 +264,6 @@ func TestNeglectedProject_RedFlags(t *testing.T) {
 	// Infrastructure: no CI/CD
 	infraResult := infra.Analyze(root, walkResult.Files, nil)
 	assert.False(t, infraResult.HasCICD, "neglected-project has no CI/CD")
-
-	// Red flags evaluation
-	redFlags := scorer.EvaluateRedFlags(scorer.RedFlagInput{
-		SecretsCount:        0,
-		CVECritical:         0,
-		EstTestCoveragePct:  0,
-		CICDDetected:        false,
-		HasReadme:           false,
-		HasGitHistory:       false,
-		UnmaintainedPct:     0,
-	})
-	assert.GreaterOrEqual(t, redFlags.Count, 3, "should flag no tests, no CI/CD, no readme")
-
-	// Verify specific flags present
-	flagCodes := make(map[models.RedFlagCode]bool)
-	for _, f := range redFlags.Flags {
-		flagCodes[f.Flag] = true
-	}
-	assert.True(t, flagCodes[models.RedFlagNoTests], "should flag no tests")
-	assert.True(t, flagCodes[models.RedFlagNoCICD], "should flag no CI/CD")
-	assert.True(t, flagCodes[models.RedFlagNoReadme], "should flag no readme")
 }
 
 // TestSecurityNightmare_SecretsDetected verifies the security-nightmare
@@ -312,19 +291,6 @@ func TestSecurityNightmare_SecretsDetected(t *testing.T) {
 	secretsResult := secrets.Scan(tmpFiles)
 	assert.Greater(t, secretsResult.SecretsCount, 0, "should detect planted secrets")
 
-	// Red flags should include secrets_detected
-	redFlags := scorer.EvaluateRedFlags(scorer.RedFlagInput{
-		SecretsCount:       secretsResult.SecretsCount,
-		EstTestCoveragePct: 10.0, // has some tests
-		CICDDetected:       false,
-		HasReadme:          true,
-		HasGitHistory:      false,
-	})
-	flagCodes := make(map[models.RedFlagCode]bool)
-	for _, f := range redFlags.Flags {
-		flagCodes[f.Flag] = true
-	}
-	assert.True(t, flagCodes[models.RedFlagSecretsDetected], "should flag secrets detected")
 }
 
 // TestMultiRepoAggregation simulates scanning multiple fixture repos and
@@ -501,12 +467,6 @@ func TestJSONOutputValidation(t *testing.T) {
 				CICDProvider: "github-actions",
 			},
 		},
-		RedFlags: models.RedFlags{
-			Count: 1,
-			Flags: []models.RedFlag{
-				{Flag: models.RedFlagStaleRepo, Detail: "test flag", Severity: models.SeverityMedium},
-			},
-		},
 		Summary: models.Summary{
 			ScoredCategories: []string{"maintainability", "security"},
 			OverallGrade:     &gradeA,
@@ -546,7 +506,6 @@ func TestJSONOutputValidation(t *testing.T) {
 	assert.Contains(t, parsed, "metrics")
 	assert.Contains(t, parsed, "activity")
 	assert.Contains(t, parsed, "detection")
-	assert.Contains(t, parsed, "red_flags")
 	assert.Contains(t, parsed, "summary")
 	assert.Contains(t, parsed, "pricing_tier")
 	assert.Contains(t, parsed, "warnings")
@@ -577,13 +536,6 @@ func TestJSONOutputValidation(t *testing.T) {
 	require.True(t, ok, "detection should be an object")
 	assert.Contains(t, detectionRaw, "ai")
 	assert.Contains(t, detectionRaw, "infrastructure")
-
-	// Validate red_flags structure
-	redFlagsRaw, ok := parsed["red_flags"].(map[string]interface{})
-	require.True(t, ok, "red_flags should be an object")
-	assert.Contains(t, redFlagsRaw, "count")
-	assert.Contains(t, redFlagsRaw, "flags")
-	assert.Equal(t, float64(1), redFlagsRaw["count"])
 
 	// Validate warnings is present as array
 	warningsRaw, ok := parsed["warnings"].([]interface{})
@@ -696,7 +648,6 @@ func TestWarningsArrayValidation(t *testing.T) {
 			DependencyHealth: &models.DependencyHealth{NAReason: "No dependencies detected"},
 			HandoffReadiness: &models.HandoffReadiness{Grade: &gradeB},
 		},
-		RedFlags: models.RedFlags{Count: 0, Flags: []models.RedFlag{}},
 		Summary: models.Summary{
 			ScoredCategories: []string{"maintainability", "security"},
 			OverallGrade:     &gradeB,

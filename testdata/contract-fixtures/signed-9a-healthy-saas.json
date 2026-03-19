@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "scan_id": "contract-test-healthy-saas",
-  "timestamp": "2026-03-19T03:15:41Z",
+  "timestamp": "2026-03-19T04:22:41Z",
   "scanner_version": "0.1.0-test",
   "repositories": [
     {
@@ -117,16 +117,6 @@
       "monitoring_tools": []
     }
   },
-  "red_flags": {
-    "count": 1,
-    "flags": [
-      {
-        "flag": "no_git_history",
-        "detail": "No git history detected (Development Activity: N/A)",
-        "severity": "high"
-      }
-    ]
-  },
   "summary": {
     "scored_categories": [
       "maintainability",
@@ -144,9 +134,9 @@
   },
   "warnings": [],
   "integrity": {
-    "scan_checksum": "95479ba6e14270cff59c1b28f2bd4ce14ad8de88ce2a56f1c7b317d12a10a70a",
+    "scan_checksum": "cd92b485a49b14a1d4a3724f9797cde132a7d39b276da06ad43353d570a1197c",
     "scanner_public_key_id": "vettcode-scanner-key-2026-03",
-    "scanner_signature": "GiGklGxkfaAWBrlhaGZP/o0Q+MyBQBRFnVrXXKr8a196nHX/TNA4ekKH7U2qws2C1S5jLhJs+KavliCakoBfBA==",
+    "scanner_signature": "qyV8UUe2PDbnENRj4s9cSRS2mqenkVTYb2LxFzYjmjpK1guNDfw7ngA3Al3Iu4JlTTdSL7FKdd5Pqfsycy5/Dg==",
     "cosign_nonce": null,
     "platform_cosignature": null,
     "platform_public_key_id": null,

@@ -41,7 +41,7 @@ Multi-Repo Scanning:
   # JSON output only (no terminal display)
   vettcode scan . --format json -q
 
-  # CI mode — fail pipeline if grade < B or critical red flags
+  # CI mode — fail pipeline if overall grade < B
   vettcode scan . --ci --ci-threshold B`,
 	Args:         cobra.ArbitraryArgs,
 	RunE:         runScan,
@@ -63,7 +63,6 @@ func init() {
 	// CI/CD integration mode
 	f.Bool("ci", false, "Enable CI mode: exit code 1 if quality gate fails")
 	f.String("ci-threshold", "C", "Minimum overall grade to pass (used with --ci)")
-	f.String("ci-fail-on", "critical", "Red flag severity that causes failure: critical, high, medium, low (used with --ci)")
 }
 
 // runScan is defined in orchestrator.go
