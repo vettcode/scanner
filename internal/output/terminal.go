@@ -194,6 +194,10 @@ func (f *TerminalFormatter) formatDependencyHealth(w io.Writer, d *models.Depend
 	}
 	grade := gradeStr(d.Grade)
 	fmt.Fprintln(w, c.sectionHeader("DEPENDENCY HEALTH", grade))
+	if d.Grade == nil && d.NAReason != "" {
+		fmt.Fprintf(w, "  %s\n", c.gray(d.NAReason))
+		return
+	}
 	fmt.Fprintf(w, "  Median Dep Age:        %d months\n", d.MedianAgeMonths)
 	if d.MedianAgeMonths > 18 {
 		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Median dependency age over 18 months impacts 50% of this score — update core packages."))
@@ -215,6 +219,13 @@ func (f *TerminalFormatter) formatActivity(w io.Writer, a *models.Activity) {
 	}
 	grade := gradeStr(a.Grade)
 	fmt.Fprintln(w, c.sectionHeader("DEVELOPMENT ACTIVITY", grade))
+	if a.Grade == nil && a.NAReason != "" {
+		fmt.Fprintf(w, "  %s\n", c.gray(a.NAReason))
+		return
+	}
+	if a.IsShallowClone {
+		fmt.Fprintf(w, "  %s\n", c.yellow("⚠️  Shallow clone detected — run 'git fetch --unshallow' and re-scan for accurate results."))
+	}
 	fmt.Fprintf(w, "  Last Commit:           %s (%d days ago)\n", a.LastCommitDate, a.DaysSinceLastCommit)
 	if a.DaysSinceLastCommit > 180 {
 		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Recent commit activity improves your Activity score."))

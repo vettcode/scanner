@@ -228,6 +228,39 @@ func TestTerminalFormatter_NilSections(t *testing.T) {
 	assert.Contains(t, out, "N/A")
 }
 
+func TestTerminalFormatter_NAReason(t *testing.T) {
+	result := &models.ScanResult{
+		Timestamp: "2026-03-13",
+		RepoCount: 1,
+		TotalLOC:  1000,
+		Metrics: models.Metrics{
+			DependencyHealth: &models.DependencyHealth{
+				NAReason: "No dependencies detected",
+			},
+		},
+		Activity: &models.Activity{
+			NAReason: "Git analysis disabled (--no-git)",
+		},
+		Summary:  models.Summary{},
+		Warnings: []models.Warning{},
+	}
+
+	formatter := &TerminalFormatter{
+		Color: &ColorConfig{Enabled: false},
+	}
+
+	var buf bytes.Buffer
+	formatter.Format(&buf, result)
+	out := buf.String()
+
+	// Should show reason instead of misleading zeros
+	assert.Contains(t, out, "No dependencies detected")
+	assert.Contains(t, out, "Git analysis disabled (--no-git)")
+	// Should NOT show zero metrics
+	assert.NotContains(t, out, "Median Dep Age")
+	assert.NotContains(t, out, "Last Commit")
+}
+
 func TestFormatNumber(t *testing.T) {
 	assert.Equal(t, "0", formatNumber(0))
 	assert.Equal(t, "999", formatNumber(999))
