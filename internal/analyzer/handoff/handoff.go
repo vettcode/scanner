@@ -34,7 +34,8 @@ func Analyze(root string, walkResult *walker.WalkResult) *Result {
 	// Boolean flags
 	r.HasReadme = fileExists(root, "README.md") || fileExists(root, "README") ||
 		fileExists(root, "readme.md") || fileExists(root, "README.rst") ||
-		fileExists(root, "README.txt")
+		fileExists(root, "README.txt") || fileExists(root, "README.markdown") ||
+		fileExists(root, "README.rdoc")
 	r.HasContributing = fileExists(root, "CONTRIBUTING.md") || fileExists(root, "CONTRIBUTING")
 	r.HasEnvTemplate = fileExists(root, ".env.example") || fileExists(root, ".env.template") ||
 		fileExists(root, ".env.sample")
@@ -90,7 +91,8 @@ func computeDocDensity(root string, wr *walker.WalkResult) string {
 
 	// README present
 	if fileExists(root, "README.md") || fileExists(root, "README") ||
-		fileExists(root, "readme.md") {
+		fileExists(root, "readme.md") || fileExists(root, "README.markdown") ||
+		fileExists(root, "README.rdoc") || fileExists(root, "README.rst") {
 		score += 2
 	}
 

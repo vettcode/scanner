@@ -253,7 +253,7 @@ Red flags are critical findings surfaced prominently at the top of every report,
 | Stale Repository | Last commit > 6 months ago | High |
 | Unmaintained Dependencies | ≥50% of dependencies unmaintained | High |
 | No CI/CD Detected | CI/CD pipeline not detected | Medium |
-| No README | No README file found in any repo root | Medium |
+| No README | No README file found in any repo root | Low |
 | No Git History | No `.git` directory found (Development Activity is N/A) | High |
 
 Red flags use **OR logic** across repos in multi-repo scans — one repo triggering a flag means the flag appears on the report.

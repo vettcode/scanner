@@ -77,7 +77,7 @@ func EvaluateRedFlags(in RedFlagInput) models.RedFlags {
 		flags = append(flags, models.RedFlag{
 			Flag:     models.RedFlagNoReadme,
 			Detail:   "No README found in any repository",
-			Severity: models.SeverityMedium,
+			Severity: models.SeverityLow,
 		})
 	}
 
