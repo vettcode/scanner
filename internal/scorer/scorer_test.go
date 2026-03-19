@@ -213,7 +213,7 @@ func TestScoreInfra_AllDetected(t *testing.T) {
 
 func TestScoreInfra_OnlyCICD(t *testing.T) {
 	score := ScoreInfra(InfraInput{CICDDetected: true})
-	assert.InDelta(t, 45.0, score, 0.01)
+	assert.InDelta(t, 60.0, score, 0.01)
 }
 
 func TestScoreInfra_NoneDetected(t *testing.T) {
@@ -433,18 +433,18 @@ func TestOverallScore_SingleCategory(t *testing.T) {
 
 func TestScoreInfra_IaCOnly(t *testing.T) {
 	score := ScoreInfra(InfraInput{IaCDetected: true})
-	// 100*0.40 + 0 + 0 = 40
-	assert.InDelta(t, 40.0, score, 0.01)
+	// 100*0.30 + 0 + 0 = 30
+	assert.InDelta(t, 30.0, score, 0.01)
 }
 
 func TestScoreInfra_MonitoringOnly(t *testing.T) {
 	score := ScoreInfra(InfraInput{MonitoringDetected: true})
-	// 0 + 0 + 100*0.15 = 15
-	assert.InDelta(t, 15.0, score, 0.01)
+	// 0 + 0 + 100*0.10 = 10
+	assert.InDelta(t, 10.0, score, 0.01)
 }
 
 func TestScoreInfra_IaCAndCICD(t *testing.T) {
 	score := ScoreInfra(InfraInput{IaCDetected: true, CICDDetected: true})
-	// 100*0.40 + 100*0.45 + 0 = 85 → grade B
-	assert.InDelta(t, 85.0, score, 0.01)
+	// 100*0.30 + 100*0.60 + 0 = 90 → grade A-
+	assert.InDelta(t, 90.0, score, 0.01)
 }

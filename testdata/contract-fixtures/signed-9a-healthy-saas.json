@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "scan_id": "contract-test-healthy-saas",
-  "timestamp": "2026-03-19T01:56:58Z",
+  "timestamp": "2026-03-19T03:15:41Z",
   "scanner_version": "0.1.0-test",
   "repositories": [
     {
@@ -106,7 +106,7 @@
       "proprietary_dataset": false
     },
     "infrastructure": {
-      "grade": "B",
+      "grade": "A-",
       "iac_detected": true,
       "iac_types": [
         "Docker"
@@ -134,7 +134,7 @@
       "handoff_readiness",
       "sre_infrastructure"
     ],
-    "overall_grade": "A-",
+    "overall_grade": "A",
     "top_risks": [],
     "top_strengths": []
   },
@@ -144,9 +144,9 @@
   },
   "warnings": [],
   "integrity": {
-    "scan_checksum": "a3fa5f03a18a227646a4f606527dc8ba32cc618c52746715a211f1fa5d101e3b",
+    "scan_checksum": "95479ba6e14270cff59c1b28f2bd4ce14ad8de88ce2a56f1c7b317d12a10a70a",
     "scanner_public_key_id": "vettcode-scanner-key-2026-03",
-    "scanner_signature": "GPhNH16c7snZYvNZe6uJZNyD6etxOunu/BKvCuYUgGWnO0Dx4dQsmUcGN2HIX/xRDCwHBH+k8wMggcOKL+n4Dg==",
+    "scanner_signature": "GiGklGxkfaAWBrlhaGZP/o0Q+MyBQBRFnVrXXKr8a196nHX/TNA4ekKH7U2qws2C1S5jLhJs+KavliCakoBfBA==",
     "cosign_nonce": null,
     "platform_cosignature": null,
     "platform_public_key_id": null,

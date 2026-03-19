@@ -28,10 +28,10 @@
     "security_grade": "A",
     "handoff_score": 79.7196261682243,
     "handoff_grade": "C+",
-    "infra_score": 85,
-    "infra_grade": "B",
-    "overall_score": 92.59190031152649,
-    "overall_grade": "A-",
+    "infra_score": 90,
+    "infra_grade": "A-",
+    "overall_score": 93.25856697819314,
+    "overall_grade": "A",
     "red_flag_count": 1,
     "red_flag_codes": [
       "no_git_history"

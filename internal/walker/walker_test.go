@@ -3,6 +3,7 @@ package walker
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -146,6 +147,17 @@ func TestCountLOC_BlankLinesOnly(t *testing.T) {
 	os.WriteFile(path, []byte("\n\n\n\n"), 0644)
 
 	assert.Equal(t, 0, countLOC(path))
+}
+
+func TestCountLOC_VeryLongLine(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "minified.js")
+	// Simulate a 3MB single-line minified JS file
+	longLine := strings.Repeat("x", 3*1024*1024)
+	content := "// header\n" + longLine + "\n"
+	os.WriteFile(path, []byte(content), 0644)
+
+	assert.Equal(t, 2, countLOC(path)) // header + long line
 }
 
 func TestWalk_BlankOnlyFileSkipped(t *testing.T) {

@@ -670,8 +670,12 @@ func parsePomXML(path string) []Dependency {
 		return nil
 	}
 
-	var deps []Dependency
 	content := string(data)
+
+	// Extract Maven properties for ${...} resolution.
+	props := parseMavenProperties(content)
+
+	var deps []Dependency
 
 	// Simple regex extraction of dependencies from pom.xml
 	re := regexp.MustCompile(`<dependency>\s*<groupId>([^<]+)</groupId>\s*<artifactId>([^<]+)</artifactId>\s*(?:<version>([^<]+)</version>)?`)
@@ -681,7 +685,7 @@ func parsePomXML(path string) []Dependency {
 		name := m[1] + ":" + m[2]
 		version := ""
 		if len(m) >= 4 {
-			version = m[3]
+			version = resolveMavenProperty(m[3], props)
 		}
 		deps = append(deps, Dependency{
 			Name:      name,
@@ -691,6 +695,38 @@ func parsePomXML(path string) []Dependency {
 		})
 	}
 	return deps
+}
+
+// parseMavenProperties extracts <properties> key-value pairs from a POM.
+func parseMavenProperties(content string) map[string]string {
+	props := make(map[string]string)
+	re := regexp.MustCompile(`<properties>([\s\S]*?)</properties>`)
+	block := re.FindStringSubmatch(content)
+	if len(block) < 2 {
+		return props
+	}
+	propRe := regexp.MustCompile(`<([a-zA-Z0-9._-]+)>([^<]*)</([a-zA-Z0-9._-]+)>`)
+	for _, m := range propRe.FindAllStringSubmatch(block[1], -1) {
+		if m[1] == m[3] { // opening and closing tags match
+			props[m[1]] = strings.TrimSpace(m[2])
+		}
+	}
+	return props
+}
+
+// resolveMavenProperty replaces ${property.name} references with their values.
+func resolveMavenProperty(version string, props map[string]string) string {
+	if !strings.Contains(version, "${") {
+		return version
+	}
+	re := regexp.MustCompile(`\$\{([^}]+)\}`)
+	return re.ReplaceAllStringFunc(version, func(match string) string {
+		key := match[2 : len(match)-1] // strip ${ and }
+		if val, ok := props[key]; ok {
+			return val
+		}
+		return match // leave unresolved if not found
+	})
 }
 
 func parseBuildGradle(path string) []Dependency {

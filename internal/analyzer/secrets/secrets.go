@@ -89,19 +89,29 @@ var patterns = []SecretPattern{
 	{Name: "AMQP URL", Category: "connection_string", Pattern: regexp.MustCompile(`(?i)amqps?://[^\s"']+:[^\s"']+@[^\s"']+`)},
 	{Name: "SMTP Credentials", Category: "connection_string", Pattern: regexp.MustCompile(`(?i)smtp://[^\s"']+:[^\s"']+@[^\s"']+`)},
 
-	// Generic patterns
-	{Name: "Generic Secret", Category: "generic", Pattern: regexp.MustCompile(`(?i)(password|passwd|pwd|secret|api_key|apikey|api_secret|access_token|auth_token|private_key)\s*[=:]\s*["'][^"']{8,}["']`)},
+	// Generic patterns — require qualifying prefix to reduce false positives on
+	// common variable names. Bare "key", "token", "secret" are too broad.
+	{Name: "Generic Secret", Category: "generic", Pattern: regexp.MustCompile(`(?i)(api_key|api_secret|apikey|secret_key|secret_token|auth_token|access_token|access_key|private_key|encryption_key|signing_key|master_key|service_key|client_secret|app_secret|password|passwd|pwd)\s*[=:]\s*["'][^"']{8,}["']`)},
 	{Name: "Bearer Token", Category: "token", Pattern: regexp.MustCompile(`(?i)bearer\s+[a-zA-Z0-9_\-.]{20,}`)},
 }
 
 // testFilePatterns are file patterns that indicate test/fixture/example files.
 var testFilePatterns = []string{
 	"_test.", ".test.", ".spec.", "__tests__",
-	"test_", "test/", "tests/", "fixtures/", "testdata/",
+	"test_", "test/", "tests/", "spec/", "fixtures/", "testdata/",
 	"mock", "fake", "stub",
 	"examples/", "example/",
 	"readme",
 	"docs/", "doc/",
+	"script/", "scripts/", "seed",
+}
+
+// skipFilePatterns are file patterns that should be excluded from secrets scanning
+// because they contain human-readable content, not code with real secrets.
+var skipFilePatterns = []string{
+	"/locales/", "/locale/", "/i18n/", "/translations/",
+	".min.js", ".min.css", ".bundle.js",
+	"/vendor/", "/node_modules/",
 }
 
 // allowlistPatterns are patterns that indicate false positives.
@@ -133,7 +143,7 @@ func Scan(files []walker.FileInfo) *Result {
 	}
 
 	for _, f := range files {
-		if isTestOrFixture(f.Path) {
+		if isTestOrFixture(f.Path) || isSkippedFile(f.Path) {
 			continue
 		}
 
@@ -183,12 +193,7 @@ func scanFile(path, relPath string) []Finding {
 			if p.Category == "generic" {
 				if m := genericSecretValuePattern.FindStringSubmatch(line); len(m) >= 3 {
 					val := m[2]
-					// Natural language phrases (spaces)
-					if isNaturalLanguage(val) {
-						continue
-					}
-					// Variable references, not hardcoded values
-					if isVariableReference(val) {
+					if isGenericSecretFalsePositive(val) {
 						continue
 					}
 				}
@@ -227,10 +232,55 @@ func scanFile(path, relPath string) []Finding {
 }
 
 // genericSecretValuePattern extracts the value from a generic secret assignment.
-var genericSecretValuePattern = regexp.MustCompile(`(?i)(password|passwd|pwd|secret|api_key|apikey|api_secret|access_token|auth_token|private_key)\s*[=:]\s*["']([^"']{8,})["']`)
+var genericSecretValuePattern = regexp.MustCompile(`(?i)(api_key|api_secret|apikey|secret_key|secret_token|auth_token|access_token|access_key|private_key|encryption_key|signing_key|master_key|service_key|client_secret|app_secret|password|passwd|pwd)\s*[=:]\s*["']([^"']{8,})["']`)
+
+// screamingCaseIdentifier matches SCREAMING_CASE constant names like HTTP_API_KEY.
+var screamingCaseIdentifier = regexp.MustCompile(`^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$`)
+
+// commonPlaceholderPattern matches well-known dummy/placeholder password values.
+var commonPlaceholderPattern = regexp.MustCompile(`(?i)^(password\d*|changeme|pa\$\$word|secret\d*|12345678\d*)$`)
 
 // assignPattern matches assignment patterns with potential secret values.
-var assignPattern = regexp.MustCompile(`(?i)(key|token|secret|password|credential)\s*[=:]\s*["']([^"']{16,})["']`)
+// Requires a qualifying prefix (api_, secret_, auth_, etc.) to avoid false positives
+// on common variable names like key = "cache_key_name".
+var assignPattern = regexp.MustCompile(`(?i)(api_key|api_secret|apikey|secret_key|secret_token|auth_token|access_token|access_key|private_key|encryption_key|signing_key|master_key|service_key|client_secret|app_secret|password|passwd|pwd)\s*[=:]\s*["']([^"']{16,})["']`)
+
+// isGenericSecretFalsePositive consolidates all checks for generic secret values
+// that are clearly not real secrets.
+func isGenericSecretFalsePositive(val string) bool {
+	// Natural language phrases (spaces)
+	if isNaturalLanguage(val) {
+		return true
+	}
+	// Variable references ($var, ->, ..)
+	if isVariableReference(val) {
+		return true
+	}
+	// SCREAMING_CASE identifiers (HTTP_API_KEY, DISCOURSE_API, etc.)
+	if screamingCaseIdentifier.MatchString(val) {
+		return true
+	}
+	// Snake_case or dotted identifiers (config keys, i18n keys)
+	if snakeCaseIdentifier.MatchString(val) {
+		return true
+	}
+	if dottedIdentifier.MatchString(val) {
+		return true
+	}
+	// String interpolation (Ruby #{}, JS ${}, PHP {$})
+	if strings.Contains(val, "#{") || strings.Contains(val, "${") || strings.Contains(val, "{$") {
+		return true
+	}
+	// URL paths or URIs
+	if strings.Contains(val, "/") || strings.Contains(val, "://") {
+		return true
+	}
+	// Common placeholder passwords (exact match only)
+	if commonPlaceholderPattern.MatchString(val) {
+		return true
+	}
+	return false
+}
 
 // isNaturalLanguage returns true if the value looks like a human-readable phrase
 // rather than a real secret. Real secrets (API keys, tokens, passwords) don't
@@ -267,7 +317,11 @@ func isCommentLine(line string) bool {
 // snakeCaseIdentifier matches values that are purely lowercase letters,
 // digits, underscores, and hyphens — feature flag names, config keys, etc.
 // These are never real secrets even if entropy is borderline high.
-var snakeCaseIdentifier = regexp.MustCompile(`^[a-z][a-z0-9]*([_-][a-z0-9]+)+$`)
+var snakeCaseIdentifier = regexp.MustCompile(`^[a-z][a-z0-9]*([_.-][a-z0-9]+)+$`)
+
+// dottedIdentifier matches dotted path identifiers like i18n keys
+// (e.g. "user_notifications.digest.new_topics") or Ruby/Java namespaces.
+var dottedIdentifier = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$`)
 
 // hasHighEntropySecret checks for high-entropy strings that look like secrets.
 func hasHighEntropySecret(line string) bool {
@@ -282,8 +336,21 @@ func hasHighEntropySecret(line string) bool {
 		return false
 	}
 
-	// Snake_case or kebab-case identifiers are config keys, not secrets.
+	// Snake_case, kebab-case, or dot-separated identifiers are config/i18n keys, not secrets.
 	if snakeCaseIdentifier.MatchString(value) {
+		return false
+	}
+	if dottedIdentifier.MatchString(value) {
+		return false
+	}
+
+	// String interpolation (Ruby #{}, Python f-string, etc.) indicates computed values, not secrets.
+	if strings.Contains(value, "#{") || strings.Contains(value, "${") || strings.Contains(value, "{$") {
+		return false
+	}
+
+	// Values containing path separators or URL patterns are not secrets.
+	if strings.Contains(value, "/") || strings.Contains(value, "://") {
 		return false
 	}
 
@@ -340,6 +407,16 @@ func isAllowlisted(s string) bool {
 func isTestOrFixture(path string) bool {
 	pathLower := strings.ToLower(path)
 	for _, p := range testFilePatterns {
+		if strings.Contains(pathLower, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func isSkippedFile(path string) bool {
+	pathLower := strings.ToLower(path)
+	for _, p := range skipFilePatterns {
 		if strings.Contains(pathLower, p) {
 			return true
 		}

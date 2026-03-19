@@ -121,7 +121,7 @@ func TestScan_EntropyDetectsHighEntropyAfterPatternMatch(t *testing.T) {
 	// File has both a pattern-matched secret AND a high-entropy secret on different lines
 	path := writeFile(t, dir, "mixed.go", `package config
 const awsKey = "AKIAIOSFODNN7ABCDEFG"
-const secret = "a9f8b7c6d5e4f3a2b1c0d9e8f7a6b5c4"
+const api_secret = "a9f8b7c6d5e4f3a2b1c0d9e8f7a6b5c4"
 `)
 	files := []walker.FileInfo{{Path: path, RelPath: "mixed.go"}}
 	r := Scan(files)
@@ -434,7 +434,7 @@ func TestScan_AMQPConnectionString(t *testing.T) {
 
 func TestScan_GitHubAppToken(t *testing.T) {
 	dir := t.TempDir()
-	path := writeFile(t, dir, "app.go", `var installToken = "ghs_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef12"`)
+	path := writeFile(t, dir, "app.go", `var installToken = "ghs_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgh12"`)
 	files := []walker.FileInfo{{Path: path, RelPath: "app.go"}}
 	r := Scan(files)
 	assert.GreaterOrEqual(t, r.SecretsCount, 1, "GitHub App token should be detected")
@@ -493,7 +493,7 @@ func TestScan_StillDetectsRealGenericSecrets(t *testing.T) {
 	// Real passwords without spaces should still be caught
 	path := writeFile(t, dir, "config.go", `
 var password = "realPassword!2024"
-var secret = "aB3$kL9pQ2wX7mR5n"
+var api_secret = "aB3xkL9pQ2wX7mR5n"
 `)
 	files := []walker.FileInfo{{Path: path, RelPath: "config.go"}}
 	r := Scan(files)
@@ -538,6 +538,47 @@ func TestScan_SkipsRegexPatternDefinitions(t *testing.T) {
 			assert.Equal(t, 0, r.SecretsCount, "%s regex pattern definition should be allowlisted", tt.name)
 		})
 	}
+}
+
+func TestScan_SkipsLocaleFiles(t *testing.T) {
+	dir := t.TempDir()
+	// Locale/translation files should be skipped entirely
+	path := writeFile(t, dir, "config/locales/server.en.yml",
+		`password: "Enter a strong password for your account"`)
+	files := []walker.FileInfo{{Path: path, RelPath: "config/locales/server.en.yml"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "locale files should be skipped")
+}
+
+func TestScan_SkipsVendorFiles(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "vendor/bundle/gems/auth.rb",
+		`password = "sk_live_abc123def456ghi789jkl012"`)
+	files := []walker.FileInfo{{Path: path, RelPath: "vendor/bundle/gems/auth.rb"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "vendor files should be skipped")
+}
+
+func TestScan_NoFalsePositives_DottedIdentifiers(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "badge.rb", `
+key = "badges.great_post.long_description"
+token = "user_notifications.digest.new_topics"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "badge.rb"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "dotted i18n identifiers should not be flagged")
+}
+
+func TestScan_NoFalsePositives_RubyInterpolation(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "cache.rb", `
+key = "summary-new-users:#{date}"
+secret_key = "#{klass},#{db},#{time.strftime(\"%Y%m%d\")},#{key}"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "cache.rb"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "Ruby string interpolation should not be flagged")
 }
 
 func TestScan_SkipsTemplateEnvVars(t *testing.T) {

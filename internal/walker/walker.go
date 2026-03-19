@@ -1,7 +1,6 @@
 package walker
 
 import (
-	"bufio"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -123,6 +122,8 @@ func Walk(root string) (*WalkResult, error) {
 }
 
 // countLOC counts non-blank lines in a file.
+// Uses a chunked byte reader instead of bufio.Scanner to handle
+// files with arbitrarily long lines (e.g. minified JS bundles).
 func countLOC(path string) int {
 	f, err := os.Open(path)
 	if err != nil {
@@ -130,18 +131,29 @@ func countLOC(path string) int {
 	}
 	defer f.Close()
 
+	buf := make([]byte, 32*1024)
 	count := 0
-	scanner := bufio.NewScanner(f)
-	// Increase buffer size for files with very long lines
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if len(line) > 0 {
-			count++
+	lineHasContent := false
+
+	for {
+		n, err := f.Read(buf)
+		for i := 0; i < n; i++ {
+			if buf[i] == '\n' {
+				if lineHasContent {
+					count++
+				}
+				lineHasContent = false
+			} else if buf[i] != '\r' && buf[i] != ' ' && buf[i] != '\t' {
+				lineHasContent = true
+			}
+		}
+		if err != nil {
+			break
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		slog.Warn("error reading file for LOC count", "path", path, "error", err)
+	// Count last line if it has content and no trailing newline
+	if lineHasContent {
+		count++
 	}
 	return count
 }

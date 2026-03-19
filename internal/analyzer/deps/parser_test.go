@@ -234,6 +234,61 @@ func TestParseJava_PomXML(t *testing.T) {
 	assert.Equal(t, "maven", deps[0].Ecosystem)
 }
 
+func TestParseJava_PomXML_PropertyResolution(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "pom.xml", `<?xml version="1.0"?>
+<project>
+  <properties>
+    <checkstyle.version>12.3.1</checkstyle.version>
+    <spring.version>3.2.0</spring.version>
+  </properties>
+  <dependencies>
+    <dependency>
+      <groupId>com.puppycrawl.tools</groupId>
+      <artifactId>checkstyle</artifactId>
+      <version>${checkstyle.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-core</artifactId>
+      <version>${spring.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>${unresolved.prop}</version>
+    </dependency>
+  </dependencies>
+</project>`)
+	deps := parseJava(dir)
+	assert.Len(t, deps, 3)
+	assert.Equal(t, "com.puppycrawl.tools:checkstyle", deps[0].Name)
+	assert.Equal(t, "12.3.1", deps[0].Version)
+	assert.Equal(t, "org.springframework:spring-core", deps[1].Name)
+	assert.Equal(t, "3.2.0", deps[1].Version)
+	// Unresolved property left as-is
+	assert.Equal(t, "${unresolved.prop}", deps[2].Version)
+}
+
+func TestParseMavenProperties(t *testing.T) {
+	content := `<project>
+  <properties>
+    <foo.version>1.2.3</foo.version>
+    <bar-lib.version>4.5.6</bar-lib.version>
+  </properties>
+</project>`
+	props := parseMavenProperties(content)
+	assert.Equal(t, "1.2.3", props["foo.version"])
+	assert.Equal(t, "4.5.6", props["bar-lib.version"])
+}
+
+func TestResolveMavenProperty(t *testing.T) {
+	props := map[string]string{"my.version": "2.0.0"}
+	assert.Equal(t, "2.0.0", resolveMavenProperty("${my.version}", props))
+	assert.Equal(t, "3.1.0", resolveMavenProperty("3.1.0", props))
+	assert.Equal(t, "${unknown}", resolveMavenProperty("${unknown}", props))
+}
+
 func TestParseJava_BuildGradle(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, dir, "build.gradle", `

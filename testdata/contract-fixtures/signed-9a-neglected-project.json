@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "scan_id": "contract-test-neglected-project",
-  "timestamp": "2026-03-19T01:56:58Z",
+  "timestamp": "2026-03-19T03:15:41Z",
   "scanner_version": "0.1.0-test",
   "repositories": [
     {
@@ -131,7 +131,7 @@
       {
         "flag": "no_readme",
         "detail": "No README found in any repository",
-        "severity": "medium"
+        "severity": "low"
       },
       {
         "flag": "no_git_history",
@@ -157,9 +157,9 @@
   },
   "warnings": [],
   "integrity": {
-    "scan_checksum": "7833f1bc1d5ce11efb894c17d16e8503a49cac44df3254e132fbcf3391affc5f",
+    "scan_checksum": "688d48b9e900c8b9a9a8ae2dd09f0518eec7bd6abcd192f0ca55b12a1b14aef6",
     "scanner_public_key_id": "vettcode-scanner-key-2026-03",
-    "scanner_signature": "fjNos2RYAIs89j+ucCaRGiJ0DAgV5fP+JziEPKUzKRKwUcxO5YAcAeRCGNB4SG6K4iIPJXtliQOjgvT17x5tAw==",
+    "scanner_signature": "eU3s6aI2Z+X9MtZR65vFn+NcNxPDP5vwy9p1/9Gsrgfl5rJT1xJGM32VSmSVWpkXpf8eouxyPlAbIcDQtVA0CA==",
     "cosign_nonce": null,
     "platform_cosignature": null,
     "platform_public_key_id": null,
