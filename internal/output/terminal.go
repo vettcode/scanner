@@ -68,9 +68,6 @@ func (f *TerminalFormatter) Format(w io.Writer, result *models.ScanResult) {
 	fmt.Fprintln(w)
 	f.formatActivity(w, result.Activity)
 
-	// Improvement tips (terminal only)
-	f.formatImprovementTips(w, result)
-
 	// Overall grade
 	fmt.Fprintln(w)
 	overallGrade := "N/A"
@@ -83,14 +80,16 @@ func (f *TerminalFormatter) Format(w io.Writer, result *models.ScanResult) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "=====================================")
 	if f.OutputPath != "" {
-		fmt.Fprintf(w, "Full results: %s\n", f.OutputPath)
+		fmt.Fprintf(w, "%s  %s\n", c.bold("Full results:"), f.OutputPath)
+		fmt.Fprintf(w, "%s  %s\n", c.bold("Upload report:"), "https://platform.vettcode.com/upload")
 	}
-	fmt.Fprintln(w, "Upload to platform.vettcode.com for signed report")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, c.gray("Ready to go beyond the numbers? Upgrade to Deep Scan for"))
-	fmt.Fprintln(w, c.gray("AI-powered insights: defensibility scoring, architecture"))
-	fmt.Fprintln(w, c.gray("risk analysis, hidden tech debt estimates, and a 90-day"))
-	fmt.Fprintf(w, "%s\n", c.gray("post-acquisition action plan. → vettcode.com/deep"))
+	fmt.Fprintln(w, c.yellow("Ready to close your deal faster?"))
+	fmt.Fprintln(w, c.yellow("Upload this scan to platform.vettcode.com to get a"))
+	fmt.Fprintln(w, c.yellow("signed, buyer-ready report — builds trust and speeds"))
+	fmt.Fprintln(w, c.yellow("up due diligence."))
+	fmt.Fprintln(w, "=====================================")
+	fmt.Fprintln(w)
 }
 
 func (f *TerminalFormatter) formatMaintainability(w io.Writer, m *models.Maintainability) {
@@ -131,6 +130,9 @@ func (f *TerminalFormatter) formatSecurity(w io.Writer, s *models.Security) {
 		secretsStr = c.red(secretsStr)
 	}
 	fmt.Fprintf(w, "  Secrets Found:         %s\n", secretsStr)
+	if s.SecretsFound > 0 {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Rotate exposed keys and remove hardcoded credentials."))
+	}
 	for i, sf := range s.SecretFindings {
 		if i >= 5 {
 			remaining := len(s.SecretFindings) - 5
@@ -163,6 +165,9 @@ func (f *TerminalFormatter) formatSecurity(w io.Writer, s *models.Security) {
 	} else {
 		fmt.Fprintf(w, "  Known CVEs:            %d\n", totalCVEs)
 	}
+	if s.CVESummary.Critical > 0 {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Update dependencies with known critical vulnerabilities."))
+	}
 
 	fmt.Fprintf(w, "  Outdated Deps:         %d/%d\n", s.OutdatedDeps.Outdated, s.OutdatedDeps.Total)
 	fmt.Fprintf(w, "  License Issues:        %d\n", s.LicenseIssueCount)
@@ -178,6 +183,9 @@ func (f *TerminalFormatter) formatDependencyHealth(w io.Writer, d *models.Depend
 	fmt.Fprintf(w, "%-25s%s\n", c.bold("DEPENDENCY HEALTH"), c.gradeColor(grade))
 	fmt.Fprintf(w, "  Median Dep Age:        %d months\n", d.MedianAgeMonths)
 	fmt.Fprintf(w, "  Unmaintained (2yr+):   %.0f%% (%d)\n", d.UnmaintainedPct, d.UnmaintainedCount)
+	if d.UnmaintainedPct >= 50 {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Updating outdated dependencies improves Dependency Health."))
+	}
 	if d.Oldest != nil {
 		fmt.Fprintf(w, "  Oldest:                %s (%.1f years)\n", d.Oldest.Package, d.Oldest.AgeYears)
 	}
@@ -192,6 +200,9 @@ func (f *TerminalFormatter) formatActivity(w io.Writer, a *models.Activity) {
 	grade := gradeStr(a.Grade)
 	fmt.Fprintf(w, "%-25s%s\n", c.bold("DEVELOPMENT ACTIVITY"), c.gradeColor(grade))
 	fmt.Fprintf(w, "  Last Commit:           %s (%d days ago)\n", a.LastCommitDate, a.DaysSinceLastCommit)
+	if a.DaysSinceLastCommit > 180 {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Recent commit activity improves your Activity score."))
+	}
 	fmt.Fprintf(w, "  Commit Velocity:       %.0f/mo avg (last 12 months)\n", a.CommitVelocity.AvgPerMonth)
 	fmt.Fprintf(w, "  Trend:                 %s\n", titleCase(string(a.CommitVelocity.Trend)))
 	fmt.Fprintf(w, "  Active Months:         %d of 12\n", a.ActiveMonths)
@@ -205,7 +216,6 @@ func (f *TerminalFormatter) formatAIDetection(w io.Writer, ai models.AIDetection
 	fmt.Fprintf(w, "  RAG Pipeline:          %s\n", c.yesNo(ai.RAGPipeline, ""))
 	fmt.Fprintf(w, "  MCP Servers:           %s\n", c.yesNo(ai.MCPServers, ""))
 	fmt.Fprintf(w, "  Proprietary Data:      %s\n", c.yesNo(ai.ProprietaryDataset, ""))
-	fmt.Fprintln(w, c.gray("  [Deep Scan adds: AI moat scoring & defensibility analysis]"))
 }
 
 func (f *TerminalFormatter) formatInfrastructure(w io.Writer, infra models.InfrastructureDetection, externalServices []string) {
@@ -213,7 +223,13 @@ func (f *TerminalFormatter) formatInfrastructure(w io.Writer, infra models.Infra
 	grade := gradeStr(infra.Grade)
 	fmt.Fprintf(w, "%-25s%s\n", c.bold("INFRASTRUCTURE"), c.gradeColor(grade))
 	fmt.Fprintf(w, "  IaC:                   %s\n", c.yesNo(infra.IaCDetected, strings.Join(infra.IaCTypes, ", ")))
+	if !infra.IaCDetected {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 IaC in a separate repo? Add it to the scan scope."))
+	}
 	fmt.Fprintf(w, "  CI/CD:                 %s\n", c.yesNo(infra.CICDDetected, infra.CICDProvider))
+	if !infra.CICDDetected {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 CI/CD in a separate repo? Add it to the scan scope."))
+	}
 	fmt.Fprintf(w, "  Monitoring:            %s\n", c.yesNo(infra.MonitoringDetected, strings.Join(infra.MonitoringTools, ", ")))
 	if len(externalServices) > 0 {
 		fmt.Fprintf(w, "  External Services:     %s\n", strings.Join(externalServices, ", "))
@@ -229,67 +245,13 @@ func (f *TerminalFormatter) formatHandoff(w io.Writer, h *models.HandoffReadines
 	grade := gradeStr(h.Grade)
 	fmt.Fprintf(w, "%-25s%s\n", c.bold("HANDOFF READINESS"), c.gradeColor(grade))
 	fmt.Fprintf(w, "  Est. Test Coverage:    %.0f%%\n", h.EstTestCoveragePct)
+	if h.EstTestCoveragePct < 1 {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Even minimal test coverage significantly improves Handoff Readiness."))
+	}
 	fmt.Fprintf(w, "  Doc Density:           %s\n", titleCase(string(h.DocDensity)))
 	fmt.Fprintf(w, "  Env Vars:              %d\n", h.EnvVarCount)
-}
-
-// formatImprovementTips shows constructive tips based on which metrics
-// dragged the score down. Terminal display only — not included in JSON output.
-func (f *TerminalFormatter) formatImprovementTips(w io.Writer, result *models.ScanResult) {
-	c := f.Color
-	var tips []string
-
-	// Security tips
-	if result.Metrics.Security != nil {
-		if result.Metrics.Security.SecretsFound > 0 {
-			tips = append(tips, "Remove hardcoded credentials and rotate any exposed keys.")
-		}
-		if result.Metrics.Security.CVESummary.Critical > 0 || result.Metrics.Security.CVESummary.High > 0 {
-			tips = append(tips, "Update dependencies with known vulnerabilities.")
-		}
-	}
-
-	// Handoff Readiness tips
-	if result.Metrics.HandoffReadiness != nil {
-		if result.Metrics.HandoffReadiness.EstTestCoveragePct < 1 {
-			tips = append(tips, "Adding test coverage would significantly improve Handoff Readiness.")
-		}
-		if !result.Metrics.HandoffReadiness.HasReadme {
-			tips = append(tips, "Adding a README helps buyers understand your project.")
-		}
-	}
-
-	// Maintainability tips
-	if result.Metrics.Maintainability != nil && len(result.Metrics.Maintainability.HotspotFiles) > 0 {
-		tips = append(tips, "Hotspot file paths are shown for convenience only and are not included in the signed report.")
-	}
-
-	// Dependency Health tips
-	if result.Metrics.DependencyHealth != nil && result.Metrics.DependencyHealth.UnmaintainedPct >= 50 {
-		tips = append(tips, "Updating outdated dependencies improves Dependency Health.")
-	}
-
-	// SRE/Infrastructure tips
-	if !result.Detection.Infrastructure.IaCDetected {
-		tips = append(tips, "IaC in a separate repo? Add it to the scan scope to improve Infrastructure.")
-	}
-	if !result.Detection.Infrastructure.CICDDetected {
-		tips = append(tips, "Setting up a CI/CD pipeline improves Infrastructure.")
-	}
-
-	// Activity tips
-	if result.Activity != nil && result.Activity.DaysSinceLastCommit > 180 {
-		tips = append(tips, "Recent commit activity improves your Development Activity score.")
-	}
-
-	if len(tips) == 0 {
-		return
-	}
-
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, c.yellow("Tips to improve your score:"))
-	for _, tip := range tips {
-		fmt.Fprintf(w, "  %s %s\n", c.yellow("*"), tip)
+	if !h.HasReadme {
+		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Adding a README helps buyers understand your project."))
 	}
 }
 

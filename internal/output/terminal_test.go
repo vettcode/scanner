@@ -72,6 +72,7 @@ func fullTestResult() *models.ScanResult {
 				EstTestCoveragePct: 62,
 				DocDensity:         models.DocDensityMedium,
 				EnvVarCount:        8,
+				HasReadme:          true,
 			},
 		},
 		Activity: &models.Activity{
@@ -254,6 +255,98 @@ func TestAggregateLanguages(t *testing.T) {
 func TestAggregateLanguages_Empty(t *testing.T) {
 	result := aggregateLanguages(nil)
 	assert.Equal(t, "", result)
+}
+
+func TestTerminalFormatter_InlineTips(t *testing.T) {
+	gradeD := models.GradeD
+	gradeF := models.GradeF
+
+	result := &models.ScanResult{
+		Timestamp: "2026-03-13",
+		RepoCount: 1,
+		TotalLOC:  5000,
+		Metrics: models.Metrics{
+			Security: &models.Security{
+				Grade:        &gradeF,
+				SecretsFound: 3,
+				CVESummary:   models.CVESummary{Critical: 2, High: 1},
+				OutdatedDeps: models.OutdatedDeps{Total: 10, Outdated: 5},
+			},
+			HandoffReadiness: &models.HandoffReadiness{
+				Grade:              &gradeD,
+				EstTestCoveragePct: 0,
+				DocDensity:         models.DocDensityLow,
+				EnvVarCount:        2,
+				HasReadme:          false,
+			},
+			DependencyHealth: &models.DependencyHealth{
+				Grade:             &gradeD,
+				MedianAgeMonths:   36,
+				UnmaintainedPct:   55,
+				UnmaintainedCount: 8,
+			},
+		},
+		Activity: &models.Activity{
+			Grade:               &gradeD,
+			LastCommitDate:      "2025-06-01",
+			DaysSinceLastCommit: 200,
+			CommitVelocity:      models.CommitVelocity{AvgPerMonth: 2, Trend: models.TrendDeclining},
+			ActiveMonths:        3,
+		},
+		Detection: models.Detection{
+			Infrastructure: models.InfrastructureDetection{
+				Grade: &gradeD,
+			},
+		},
+		Summary: models.Summary{},
+	}
+
+	formatter := &TerminalFormatter{
+		Color: &ColorConfig{Enabled: false},
+	}
+
+	var buf bytes.Buffer
+	formatter.Format(&buf, result)
+	out := buf.String()
+
+	// Security inline tips
+	assert.Contains(t, out, "Rotate exposed keys and remove hardcoded credentials.")
+	assert.Contains(t, out, "Update dependencies with known critical vulnerabilities.")
+
+	// Handoff inline tips
+	assert.Contains(t, out, "Even minimal test coverage significantly improves Handoff Readiness.")
+	assert.Contains(t, out, "Adding a README helps buyers understand your project.")
+
+	// Dependency Health inline tip
+	assert.Contains(t, out, "Updating outdated dependencies improves Dependency Health.")
+
+	// Infrastructure inline tips
+	assert.Contains(t, out, "IaC in a separate repo? Add it to the scan scope.")
+	assert.Contains(t, out, "CI/CD in a separate repo? Add it to the scan scope.")
+
+	// Activity inline tip
+	assert.Contains(t, out, "Recent commit activity improves your Activity score.")
+
+	// Old block header must not appear
+	assert.NotContains(t, out, "Tips to improve your score:")
+}
+
+func TestTerminalFormatter_NoTipsWhenHealthy(t *testing.T) {
+	result := fullTestResult()
+	// fullTestResult has healthy metrics — no tips should trigger
+	// (except HasReadme defaults to false, so set it true)
+	result.Metrics.HandoffReadiness.HasReadme = true
+
+	formatter := &TerminalFormatter{
+		Color: &ColorConfig{Enabled: false},
+	}
+
+	var buf bytes.Buffer
+	formatter.Format(&buf, result)
+	out := buf.String()
+
+	assert.NotContains(t, out, "💡")
+	assert.NotContains(t, out, "Tips to improve your score:")
 }
 
 func TestColorConfig_GradeColor(t *testing.T) {
