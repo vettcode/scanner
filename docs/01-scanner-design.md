@@ -627,34 +627,67 @@ Runs after scoring. Evaluates threshold conditions against aggregated results. E
 
 ### 5.3 Secrets Detection
 
-**Approach:** Multi-layered detection combining regex patterns and Shannon entropy analysis.
+**Approach:** Confidence-based scoring combining regex patterns, Shannon entropy analysis, and multi-signal evaluation. Each candidate finding receives a confidence score (0–100). Only findings scoring ≥ 50 are reported.
 
-**Layer 1 -- Regex patterns (~200 patterns):**
+**Pattern matching (Layer 1):**
 
-- API keys: AWS, GCP, Azure, OpenAI, Stripe, SendGrid, Twilio, etc.
-- Tokens: JWT, OAuth, GitHub PAT, npm tokens
-- Connection strings: database URLs with credentials
-- Private keys: PEM-encoded RSA, DSA, EC keys
-- Generic patterns: `password=`, `secret=`, `api_key=` assignments with string values
+- API keys: AWS, GCP, Azure, OpenAI, Anthropic, Stripe, SendGrid, Twilio, Slack, Shopify, Datadog, etc.
+- Tokens: JWT, GitHub PAT/OAuth/App, GitLab PAT, npm, PyPI, NuGet, Heroku, Firebase, Bearer
+- Connection strings: database URLs (postgres, mysql, mongodb, redis), AMQP, SMTP
+- Private keys: PEM-encoded RSA, DSA, EC, OpenSSH, PGP
+- Generic patterns: `password=`, `secret_key=`, `api_key=` assignments with string values (requires qualifying prefix)
 
-**Layer 2 -- Shannon entropy analysis:**
+**Entropy analysis (Layer 2):**
 
-- For strings that match structural patterns (e.g., `AKIA` prefix for AWS) but also for unmatched high-entropy strings
-- Compute Shannon entropy of candidate strings
-- Threshold: entropy > 4.5 for hex strings, > 4.0 for base64 strings (calibrated to reduce false positives)
-- Minimum string length: 16 characters
-- Snake_case / kebab-case identifiers (e.g., `legacy_cloud_feature_flag`) are excluded — these are config keys, not secrets
+- For unmatched lines, extract values from assignment patterns (qualifying prefix + string value ≥ 16 chars)
+- Compute Shannon entropy: threshold > 4.5 for hex strings, > 4.0 for base64
+- Values passing the entropy threshold become candidates with base confidence 40
 
-**Layer 3 -- Allowlist filtering:**
+**Confidence scoring (Layer 3):**
 
-- Exclude known false positives: example values in docs, test fixtures, placeholder strings
-- Exclude files matching common test/fixture patterns (`tests/`, `docs/`, `doc/`, `readme`, `examples/`, etc.)
-- Skip commented-out lines (`//`, `#`, `*`, `/*`, `<!--`) — commented secrets in docker-compose or config files are not real leaks
-- Exclude template variable references: `${{ secrets.* }}` (GitHub Actions), `{{ .Env.* }}` (Go templates), `${VAR}` / `${:VAR}` (shell/Laravel), `process.env.*` (Node.js), `os.environ` (Python), `${expr}` (JS template literals), `{$var}` (PHP interpolation)
-- Exclude generic secret values that are variable dereferences rather than hardcoded strings (e.g., `$connection['password']`, `$config['api_secret']`)
-- Exclude regex pattern definition lines (all Tier 1 languages) to prevent the scanner from flagging its own patterns
+Each candidate starts with a **base confidence** determined by pattern specificity, then signals adjust the score:
 
-**Output:** Count only in the **JSON output** — no file names, line numbers, or secret content. The **terminal output** shows file paths where secrets were detected (e.g., `src/config.ts: 2 potential secrets`) so the seller can locate and remove them before rescanning. Secret values are never shown in either output.
+| Category | Base confidence | Rationale |
+| --- | --- | --- |
+| AWS/GCP/Azure/API keys | 85 | Specific format is strong evidence |
+| Tokens (GitHub, JWT, etc.) | 80 | Distinctive prefix patterns |
+| Bearer tokens | 75 | Common HTTP auth header pattern, high FP in test files |
+| Connection strings | 75 | URL format with credentials |
+| Private keys | 70 | Common in test fixtures |
+| Generic secrets | 50 | Heuristic matching, highest FP rate |
+| High-entropy strings | 40 | Most speculative detection |
+
+**Signals** adjust the score up or down:
+
+| Signal | Delta | Trigger |
+| --- | --- | --- |
+| `test_path` | -30 | File in test/fixture/mock/devenv path |
+| `docs_path` | -40 | File in docs/readme/examples/scripts path |
+| `config_template` | -35 | File is `.env.example`, `.sample`, `.template` |
+| `comment` | -25 | Line is a code comment (`//`, `#`, `*`, `/*`, `<!--`) |
+| `placeholder` | -40 | Line contains TODO/FIXME/CHANGEME/example/dummy/sample/your_ |
+| `regex_def` | -50 | Line defines a regex pattern (all Tier 1 languages) |
+| `env_lookup` | -40 | Line reads from environment (os.getenv, process.env) |
+| `template` | -35 | Line has template/interpolation syntax (`${{ }}`, `{{ .Env }}`, `${VAR}`, `%(var)s`, `\(var)`, `{$var}`, `%s`/`%d`) |
+| `natural_language` | -30 | Extracted value contains spaces |
+| `variable_ref` | -35 | Value contains variable reference (`$`, `->`, `..`) |
+| `identifier` | -30 | Value is SCREAMING_CASE, snake_case, or dotted path (config keys) |
+| `interpolation` | -35 | Value contains string interpolation (`#{}`, `${}`, `{$}`, `%(`, `\\(`, `{{`, `{var}`, `%s`) |
+| `url_path` | -25 | Value contains URL path or `://` |
+| `placeholder_value` | -45 | Value matches known placeholders (password123, changeme, etc.) |
+| `high_finding_count` | -15 | File has >10 findings (batch false positive pattern) |
+
+**Threshold filtering:**
+- Confidence ≥ 50: **reported** as `secrets_found`
+- Confidence 30–49: **not counted** (pattern matches in non-production files, tracked as `suppressed_secrets` for transparency)
+- Confidence < 30: silently dropped
+
+**Hard pre-filters (performance, not accuracy):**
+- Vendor/minified/locale files (`/vendor/`, `/node_modules/`, `.min.js`, `/locales/`, `/i18n/`) are hard-skipped before scanning — these never contain secrets worth reporting and skipping them avoids unnecessary I/O.
+
+**Key design property:** The confidence system degrades gracefully. A finding needs to look suspicious on *multiple* dimensions to be reported — a single missed filter won't cause a false positive if other signals push the score down. Conversely, a real secret (e.g., an actual AWS key) in a test file still scores 55 (85 - 30) and is reported, because the pattern specificity outweighs the single test-path signal.
+
+**Output:** `secrets_found` count and `suppressed_secrets` count in the **JSON output** — no file content or secret values. The **terminal output** shows file paths and line numbers where secrets were detected so the seller can locate and remove them. When additional matches exist below the threshold, the terminal shows "ℹ  N additional matches not counted (found in tests, docs, or examples)" indented under Secrets Found for transparency. Secret values are never shown in either output.
 
 ### 5.4 CVE Lookup
 
@@ -1314,7 +1347,8 @@ MAINTAINABILITY          <grade>
 
 SECURITY                 <grade>
   Secrets Found:         <N>
-    <repo>/<file_path>: <N> potential secret(s)
+    ℹ  <N> additional matches not counted (found in tests, docs, or examples)
+    1. <file_path>:<line>  <pattern_name>
     ...
   Known CVEs:            <N> (<breakdown>)
     1. <severity>  <package>@<version>  (fix: <fixed_version>)
@@ -1570,7 +1604,7 @@ internal/
       duplication.go           # Token-based duplication detection
       filesize.go              # File size distribution
     security/
-      secrets.go               # Regex + entropy secret detection
+      secrets.go               # Confidence-based secret detection (regex + entropy + multi-signal scoring)
       cve.go                   # OSV database CVE lookup
       licenses.go              # SPDX license detection
       outdated.go              # Outdated dependency detection
@@ -1795,13 +1829,26 @@ The scan worker runs the same VettCode scanner binary inside an ephemeral Cloud 
 
 ## Appendix A: Secrets Detection Patterns
 
-~200 regex patterns for secrets detection, maintained in `internal/analyze/security/patterns.yaml`. Each pattern has a `name`, `regex`, and `confidence` level (high or medium).
+~40 regex patterns for secrets detection, defined inline in `internal/analyzer/secrets/secrets.go`. Each pattern has a `Name`, `Category`, and compiled `Pattern`.
 
-**Categories covered:** AWS keys (access key, secret key), GitHub PATs, OpenAI/Anthropic API keys, Stripe secret keys, GCP service account JSON, private key PEM blocks, JWT tokens, database connection strings, generic API key assignments, and ~190 more provider-specific patterns.
+**Categories and base confidence scores:**
 
-**Confidence levels:** `high` = deterministic format match (e.g., `AKIA` prefix for AWS access keys, `ghp_` prefix for GitHub PATs). `medium` = heuristic match requiring context (e.g., generic `api_key=` assignments, JWT-format strings that could be non-secret).
+| Category | Base | Examples |
+| --- | --- | --- |
+| `aws` (85) | AWS Access Key (`AKIA...`), AWS Secret Key | Deterministic prefix format |
+| `gcp` (85) | GCP API Key (`AIza...`), GCP Service Account JSON | Deterministic prefix format |
+| `azure` (85) | Azure Storage Key (`AccountKey=...`) | Deterministic format |
+| `api_key` (85) | OpenAI, Anthropic, Stripe, SendGrid, Twilio, Slack, Shopify, Datadog, Mailchimp, Mailgun, Square | Provider-specific prefixes |
+| `token` (80) | GitHub PAT/OAuth/App, GitLab PAT, npm, PyPI, NuGet, Heroku, Firebase, JWT | Distinctive prefix patterns |
+| `bearer` (75) | Bearer token (`Bearer <token>`) | Common HTTP auth header, high FP in test files |
+| `private_key` (70) | RSA, DSA, EC, OpenSSH, PGP PEM blocks | Common in test fixtures |
+| `connection_string` (75) | Database URLs (postgres, mysql, mongodb, redis), AMQP, SMTP | URL format with credentials |
+| `generic` (50) | `password=`, `api_key=`, `secret_key=` with string values | Requires qualifying prefix to reduce false positives |
+| `entropy` (40) | High-entropy strings matching assignment patterns | Shannon entropy > 4.0 (base64) or > 4.5 (hex) |
 
-> Implementation: see `internal/analyze/security/patterns.yaml` in the scanner repo.
+Base confidence is adjusted by multi-signal analysis (file path, line content, value characteristics) to produce a final 0–100 score. Only findings ≥ 50 are reported. See Section 5.3 for signal details.
+
+> Implementation: see `internal/analyzer/secrets/secrets.go` in the scanner repo.
 
 ## Appendix B: AI Detection Patterns
 

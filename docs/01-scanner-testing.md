@@ -38,8 +38,9 @@ Every analyzer has unit tests with fixture inputs and expected outputs.
 
 **Security:** `MOSTLY COVERED`
 
-- Secrets: fixtures with planted AWS keys (`AKIA...`), GitHub PATs (`ghp_...`), PEM private keys, generic `api_key=` assignments, connection strings — assert exact count `COVERED` — `TestScan_AWSKey`, `_PrivateKey`, `_GenericSecret`, `_DatabaseURL`, `_MultipleSecrets_ExactCount` (==3), plus expanded patterns (Anthropic, GitLab, JWT, OpenSSH, Shopify, AMQP, GitHub App) in `secrets_test.go`
-- False positive test: fixtures with high-entropy but legitimate strings (UUIDs, SHA hashes, base64 encoded non-secrets) — assert zero detections `COVERED` — `TestScan_NoFalsePositives_UUIDs`, `_GitHashes`, `_CommonPatterns` in `secrets_test.go`
+- Secrets (confidence-based scoring): fixtures with planted AWS keys (`AKIA...`), GitHub PATs (`ghp_...`), PEM private keys, generic `api_key=` assignments, connection strings — assert detection with correct confidence scores `COVERED` — `TestScan_AWSKey` (confidence 85), `_PrivateKey` (70), `_GenericSecret` (50), `_DatabaseURL` (75), `_MultipleSecrets_ExactCount` (==3), plus expanded patterns (Anthropic, GitLab, JWT, OpenSSH, Shopify, AMQP, GitHub App) in `secrets_test.go`
+- Confidence signal tests: file-level (`test_path` -30, `docs_path` -40, `config_template` -35), line-level (`comment` -25, `placeholder` -40, `regex_def` -50, `env_lookup` -40, `template` -35), value-level (`natural_language` -30, `variable_ref` -35, `identifier` -30, `interpolation` -35, `url_path` -25, `placeholder_value` -45), context (`high_finding_count` -15) `COVERED` — `TestConfidence_FileSignals`, `_LineSignals`, `_ValueSignals`, `_HighFindingCount`, `_RealAWSKeyInTestFile` (real key in test file scores 55, still reported), `_SuppressedCount`, `_ConfigTemplateFile`
+- False positive test: fixtures with high-entropy but legitimate strings (UUIDs, SHA hashes, base64 encoded non-secrets) — assert zero detections `COVERED` — `TestScan_NoFalsePositives_UUIDs`, `_GitHashes`, `_CommonPatterns`, `_SnakeCaseIdentifiers`, `_CommentedLines`, `_VariableReferences`, `_TemplateInterpolation`, `_NaturalLanguagePhrases`, `_DottedIdentifiers`, `_RubyInterpolation` in `secrets_test.go`
 - CVE: fixture lockfiles with known vulnerable packages (use packages with well-documented CVEs) — assert CVE ID, severity, package name, fix version `COVERED` — `TestLookupCVEs_OfflineWithSnapshot`, `TestCVSSToSeverity`, `TestCVESummary` in `cve_test.go`; version range checks in `snapshot_test.go`
 - CVE offline: verify bundled OSV snapshot returns results for npm, PyPI, Go packages. Verify `cve_ecosystems_skipped` lists PHP/Ruby/Java ecosystems when using offline snapshot. `COVERED` — `TestLookupCVEs_OfflineSkipsNonSupported` (packagist, rubygems filtered)
 - Licenses: fixture with GPL + MIT + Apache mix — assert copyleft flagged `COVERED` — 18 tests in `license_test.go` covering GPL, AGPL, SSPL, LGPL, EUPL, CC licenses + full permissive list
@@ -224,9 +225,10 @@ We validate VettCode's output against established, trusted tools across every me
 **Secrets detection — validate against truffleHog + GitLeaks:** `NOT STARTED`
 
 1. Run both `truffleHog` and `gitleaks` on the same fixture repos
-2. VettCode must detect everything truffleHog detects (zero false negatives vs truffleHog)
+2. VettCode must detect everything truffleHog detects (zero false negatives vs truffleHog) — compare only findings with confidence ≥ 50
 3. Known-secrets test suite (planted secrets: AWS keys, API tokens, PEM keys, connection strings)
-4. Known-clean test suite (high-entropy but legitimate strings like UUIDs, hashes); assert zero false positives
+4. Known-clean test suite (high-entropy but legitimate strings like UUIDs, hashes); assert zero detections
+5. **Calibration:** Run confidence scoring side-by-side on 10–20 open source repos (click, redis, django, svelte, grafana, etc.) — compare reported vs suppressed counts, verify zero false positives in reported findings
 
 **CVE detection — validate against Snyk + Trivy:** `NOT STARTED`
 
@@ -366,8 +368,9 @@ Use `git commit --date` and `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` to create det
 
 Separate from the repo fixtures, create targeted test files for analyzer edge cases:
 
-- `testdata/secrets/false-positives/`: UUIDs, SHA-256 hashes, base64 blobs, JWT tokens (expired/test), high-entropy variable names — **zero detections expected** `TODO` — tests exist inline in `secrets_test.go` but no dedicated fixture directory
-- `testdata/secrets/true-positives/`: One file per secret type (AWS `AKIA...`, GitHub `ghp_...`, generic `api_key=`, PEM block, connection string `postgres://user:pass@host`) — **exact count per type expected** `TODO` — tests exist inline but no dedicated fixture directory
+- `testdata/secrets/false-positives/`: UUIDs, SHA-256 hashes, base64 blobs, JWT tokens (expired/test), high-entropy variable names, snake_case identifiers, template interpolation, variable references, commented-out lines, dotted i18n keys, natural language phrases — **zero detections expected** `TODO` — tests exist inline in `secrets_test.go` (23 false-positive tests) but no dedicated fixture directory
+- `testdata/secrets/true-positives/`: One file per secret type (AWS `AKIA...`, GitHub `ghp_...`, generic `api_key=`, PEM block, connection string `postgres://user:pass@host`) — **exact count per type expected, with confidence scores verified** `TODO` — tests exist inline but no dedicated fixture directory
+- `testdata/secrets/confidence-edge-cases/`: Real AWS key in test file (confidence 55, still reported), private key in test fixture (confidence 40, suppressed), generic secret in docs (confidence 10, dropped), file with 12+ findings (high_finding_count penalty) `COVERED` — inline tests: `TestConfidence_RealAWSKeyInTestFile`, `_SuppressedCount`, `_HighFindingCount`
 - `testdata/duplication/renamed-vars/`: Two files with identical structure but all variables renamed — **must detect as duplicate** `TODO` — `TestTokenDuplication_RenamedVariables` uses inline token streams, no fixture directory
 - `testdata/complexity/boundary/`: One file per language with functions at exact complexity boundaries (1, 5, 10, 15, 25) `TODO` — tests use inline code, no fixture directory
 

@@ -15,6 +15,7 @@ type Dependency struct {
 	Version   string // locked version, may be empty
 	Ecosystem string // "npm", "pypi", "go", "packagist", "rubygems", "maven"
 	Language  string
+	Direct    bool   // true if declared in manifest; false if transitive/indirect
 }
 
 // ParseResult holds all dependencies found in a repository.
@@ -116,6 +117,7 @@ func parseNPM(root string) []Dependency {
 					Version:   v,
 					Ecosystem: "npm",
 					Language:  "JavaScript",
+					Direct:    true,
 				})
 			}
 		}
@@ -393,6 +395,7 @@ func parseRequirementsTxt(path string) []Dependency {
 				Version:   cleanVersion(version),
 				Ecosystem: "pypi",
 				Language:  "Python",
+				Direct:    true,
 			})
 		}
 	}
@@ -460,29 +463,25 @@ func parseGo(root string) []Dependency {
 		if inRequire {
 			matches := blockRe.FindStringSubmatch(trimmed)
 			if len(matches) >= 3 {
-				// Skip indirect dependencies
-				if strings.Contains(trimmed, "// indirect") {
-					continue
-				}
 				deps = append(deps, Dependency{
 					Name:      matches[1],
 					Version:   matches[2],
 					Ecosystem: "go",
 					Language:  "Go",
+					Direct:    !strings.Contains(trimmed, "// indirect"),
 				})
 			}
 		} else {
 			// Handle single-line require: require github.com/pkg/errors v0.9.1
 			matches := singleRe.FindStringSubmatch(trimmed)
 			if len(matches) >= 3 {
-				if !strings.Contains(trimmed, "// indirect") {
-					deps = append(deps, Dependency{
-						Name:      matches[1],
-						Version:   matches[2],
-						Ecosystem: "go",
-						Language:  "Go",
-					})
-				}
+				deps = append(deps, Dependency{
+					Name:      matches[1],
+					Version:   matches[2],
+					Ecosystem: "go",
+					Language:  "Go",
+					Direct:    !strings.Contains(trimmed, "// indirect"),
+				})
 			}
 		}
 	}
@@ -531,6 +530,7 @@ func parsePHP(root string) []Dependency {
 					Version:   v,
 					Ecosystem: "packagist",
 					Language:  "PHP",
+					Direct:    true,
 				})
 			}
 		}
@@ -616,6 +616,7 @@ func parseRuby(root string) []Dependency {
 					Version:   matches[2],
 					Ecosystem: "rubygems",
 					Language:  "Ruby",
+					Direct:    true,
 				})
 			}
 		}
@@ -645,6 +646,7 @@ func parseGemfile(path string) []Dependency {
 				Name:      matches[1],
 				Ecosystem: "rubygems",
 				Language:  "Ruby",
+				Direct:    true,
 			})
 		}
 	}
@@ -692,6 +694,7 @@ func parsePomXML(path string) []Dependency {
 			Version:   cleanVersion(version),
 			Ecosystem: "maven",
 			Language:  "Java",
+			Direct:    true,
 		})
 	}
 	return deps
@@ -755,6 +758,7 @@ func parseBuildGradle(path string) []Dependency {
 			Version:   cleanVersion(version),
 			Ecosystem: "maven",
 			Language:  "Java",
+			Direct:    true,
 		})
 	}
 	return deps

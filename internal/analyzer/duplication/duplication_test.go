@@ -58,14 +58,17 @@ func process() {
 	save(result)
 	log("done")
 	cleanup()
+	notify()
+	finalize()
+	complete()
 }
 `
 	p1 := createFile(t, dir, "a.go", duplicated)
 	p2 := createFile(t, dir, "b.go", duplicated)
 
 	files := []walker.FileInfo{
-		{Path: p1, LOC: 9},
-		{Path: p2, LOC: 9},
+		{Path: p1, LOC: 12},
+		{Path: p2, LOC: 12},
 	}
 	r := Analyze(files)
 	assert.Greater(t, r.DuplicationPct, 0.0)
@@ -81,14 +84,18 @@ func process() {
 	validate(result)
 	save(result)
 	log("done")
+	cleanup()
+	notify()
+	finalize()
+	complete()
 }
 `
 	p1 := createFile(t, dir, "a.go", code)
 	p2 := createFile(t, dir, "a_test.go", code)
 
 	files := []walker.FileInfo{
-		{Path: p1, LOC: 8},
-		{Path: p2, LOC: 8, IsTest: true},
+		{Path: p1, LOC: 12},
+		{Path: p2, LOC: 12, IsTest: true},
 	}
 	r := Analyze(files)
 	assert.Equal(t, 0.0, r.DuplicationPct) // test file skipped
@@ -216,7 +223,7 @@ func TestTokenDuplication_NoDuplication(t *testing.T) {
 }
 
 func TestTokenDuplication_BlockFiltering(t *testing.T) {
-	// Duplicate tokens that span only 3 lines (< minBlockLines=6)
+	// Duplicate tokens that span only 3 lines (< minBlockLines=10)
 	// should be filtered out
 	tokens := make([]Token, 120)
 	for i := range tokens {
@@ -232,13 +239,13 @@ func TestTokenDuplication_BlockFiltering(t *testing.T) {
 		"/b.js": tokens,
 	}
 	r := Analyze(files, ts)
-	assert.Equal(t, 0, r.DuplicateBlocks, "blocks spanning < 6 lines should be filtered")
+	assert.Equal(t, 0, r.DuplicateBlocks, "blocks spanning < 10 lines should be filtered")
 }
 
 func TestMixedTokenAndLineFiles(t *testing.T) {
 	dir := t.TempDir()
 
-	// Tier 2 file (no tokens) with duplication
+	// Tier 2 file (no tokens) with duplication — needs 10+ non-blank lines
 	lineContent := `package main
 func handler() {
 	data := fetchData()
@@ -247,6 +254,9 @@ func handler() {
 	save(result)
 	log("done")
 	cleanup()
+	notify()
+	finalize()
+	complete()
 }
 `
 	p1 := createFile(t, dir, "a.go", lineContent)
@@ -259,8 +269,8 @@ func handler() {
 	}
 
 	files := []walker.FileInfo{
-		{Path: p1, LOC: 9},
-		{Path: p2, LOC: 9},
+		{Path: p1, LOC: 12},
+		{Path: p2, LOC: 12},
 		{Path: "/tier1.js", LOC: 12},
 	}
 	ts := map[string][]Token{
@@ -270,28 +280,28 @@ func handler() {
 	// Line-based should find duplication in a.go/b.go
 	assert.Greater(t, r.DuplicatedLOC, 0)
 	// TotalLOC should include all 3 files
-	assert.Equal(t, 30, r.TotalLOC)
+	assert.Equal(t, 36, r.TotalLOC)
 }
 
 func TestCountBlocksAndLOC(t *testing.T) {
-	// Two contiguous blocks: lines 1-8 and lines 15-22
+	// Two contiguous blocks: lines 1-12 and lines 20-31
 	lines := map[int]map[int]bool{
 		0: {
-			1: true, 2: true, 3: true, 4: true,
-			5: true, 6: true, 7: true, 8: true,
-			15: true, 16: true, 17: true, 18: true,
-			19: true, 20: true, 21: true, 22: true,
+			1: true, 2: true, 3: true, 4: true, 5: true, 6: true,
+			7: true, 8: true, 9: true, 10: true, 11: true, 12: true,
+			20: true, 21: true, 22: true, 23: true, 24: true, 25: true,
+			26: true, 27: true, 28: true, 29: true, 30: true, 31: true,
 		},
 	}
 	loc, blocks := countBlocksAndLOC(lines)
-	assert.Equal(t, 16, loc)
+	assert.Equal(t, 24, loc)
 	assert.Equal(t, 2, blocks)
 }
 
 func TestCountBlocksAndLOC_FilterSmall(t *testing.T) {
-	// One block of 3 lines (< minBlockLines) should be filtered
+	// One block of 5 lines (< minBlockLines=10) should be filtered
 	lines := map[int]map[int]bool{
-		0: {1: true, 2: true, 3: true},
+		0: {1: true, 2: true, 3: true, 4: true, 5: true},
 	}
 	loc, blocks := countBlocksAndLOC(lines)
 	assert.Equal(t, 0, loc)
@@ -303,8 +313,7 @@ func TestCountBlocksAndLOC_FilterSmall(t *testing.T) {
 func TestAnalyze_PartialDuplication(t *testing.T) {
 	dir := t.TempDir()
 
-	// 8 lines of duplicated code + 8 lines of unique code in each file
-	// Total = 32 lines, duplicated = 16 (8 in each), expected ~50%
+	// 12 lines of duplicated code + 12 lines of unique code in each file
 	common := `	data := fetchData()
 	result := transform(data)
 	validate(result)
@@ -313,6 +322,10 @@ func TestAnalyze_PartialDuplication(t *testing.T) {
 	cleanup()
 	notify()
 	finalize()
+	archive()
+	compress()
+	upload()
+	done()
 `
 	p1 := createFile(t, dir, "a.go", "package main\nfunc a() {\n"+common+`	uniqueA1()
 	uniqueA2()
@@ -322,6 +335,10 @@ func TestAnalyze_PartialDuplication(t *testing.T) {
 	uniqueA6()
 	uniqueA7()
 	uniqueA8()
+	uniqueA9()
+	uniqueA10()
+	uniqueA11()
+	uniqueA12()
 }
 `)
 	p2 := createFile(t, dir, "b.go", "package main\nfunc b() {\n"+common+`	uniqueB1()
@@ -332,15 +349,19 @@ func TestAnalyze_PartialDuplication(t *testing.T) {
 	uniqueB6()
 	uniqueB7()
 	uniqueB8()
+	uniqueB9()
+	uniqueB10()
+	uniqueB11()
+	uniqueB12()
 }
 `)
 
 	files := []walker.FileInfo{
-		{Path: p1, LOC: 19},
-		{Path: p2, LOC: 19},
+		{Path: p1, LOC: 27},
+		{Path: p2, LOC: 27},
 	}
 	r := Analyze(files)
-	// Should detect the common 8-line block
+	// Should detect the common 12-line block
 	assert.Greater(t, r.DuplicationPct, 0.0, "should detect partial duplication")
 	assert.Greater(t, r.DuplicateBlocks, 0)
 }
@@ -363,7 +384,7 @@ func only() {
 func TestAnalyze_ThreeFilesWithDuplication(t *testing.T) {
 	dir := t.TempDir()
 
-	// Same 8-line block appears in all 3 files
+	// Same 12-line block appears in all 3 files
 	common := `	data := fetchData()
 	result := transform(data)
 	validate(result)
@@ -372,15 +393,19 @@ func TestAnalyze_ThreeFilesWithDuplication(t *testing.T) {
 	cleanup()
 	notify()
 	finalize()
+	archive()
+	compress()
+	upload()
+	done()
 `
 	for _, name := range []string{"x.go", "y.go", "z.go"} {
 		createFile(t, dir, name, "package main\nfunc f() {\n"+common+"}\n")
 	}
 
 	files := []walker.FileInfo{
-		{Path: filepath.Join(dir, "x.go"), LOC: 11},
-		{Path: filepath.Join(dir, "y.go"), LOC: 11},
-		{Path: filepath.Join(dir, "z.go"), LOC: 11},
+		{Path: filepath.Join(dir, "x.go"), LOC: 15},
+		{Path: filepath.Join(dir, "y.go"), LOC: 15},
+		{Path: filepath.Join(dir, "z.go"), LOC: 15},
 	}
 	r := Analyze(files)
 	assert.Greater(t, r.DuplicationPct, 0.0, "duplication across 3 files")

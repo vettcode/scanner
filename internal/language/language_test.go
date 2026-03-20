@@ -102,6 +102,9 @@ func TestClassifyFile(t *testing.T) {
 		{"src/types.d.ts", "TypeScript", Tier1, false, false},
 		// Makefile detection
 		{"build/Makefile", "Shell", Tier2, false, false},
+		// Generic fallback: any language under test/tests is a test file
+		{"tests/unit/helper.sh", "Shell", Tier2, true, false},
+		{"test/integration/setup.sql", "SQL", Tier2, true, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
@@ -135,6 +138,29 @@ func TestManifestFiles(t *testing.T) {
 	}
 }
 
+func TestIsTier2Code(t *testing.T) {
+	// Code languages should return true
+	codeLangs := []string{"C", "C++", "C#", "Rust", "Swift", "Kotlin", "Scala", "R", "Lua", "Perl", "Elixir", "Erlang", "Dart"}
+	for _, lang := range codeLangs {
+		assert.True(t, IsTier2Code(lang), "%s should be Tier 2 code", lang)
+	}
+
+	// Config/markup should return false
+	assert.False(t, IsTier2Code("HTML"))
+	assert.False(t, IsTier2Code("CSS"))
+	assert.False(t, IsTier2Code("YAML"))
+	assert.False(t, IsTier2Code("JSON"))
+	assert.False(t, IsTier2Code("Markdown"))
+
+	// Tier 1 languages should return false
+	assert.False(t, IsTier2Code("Go"))
+	assert.False(t, IsTier2Code("Python"))
+	assert.False(t, IsTier2Code("JavaScript"))
+
+	// Unknown should return false
+	assert.False(t, IsTier2Code("Unknown"))
+}
+
 func TestAggregateResults(t *testing.T) {
 	files := map[string]int{
 		"TypeScript": 30000,
@@ -152,6 +178,29 @@ func TestAggregateResults(t *testing.T) {
 	assert.Equal(t, []string{"HTML", "Python", "TypeScript"}, result.DetectedLanguages)
 }
 
+func TestAggregateResults_Tier2CodeLanguages(t *testing.T) {
+	files := map[string]int{
+		"Rust": 8000,
+		"HTML": 2000,
+	}
+	result := AggregateResults(files)
+	assert.False(t, result.HasTier1)
+	assert.Equal(t, []string{"Rust"}, result.Tier2CodeLanguages)
+	assert.Empty(t, result.Tier1Languages)
+}
+
+func TestAggregateResults_MixedTier1And2(t *testing.T) {
+	files := map[string]int{
+		"Go":   10000,
+		"Rust": 5000,
+		"HTML": 1000,
+	}
+	result := AggregateResults(files)
+	assert.True(t, result.HasTier1)
+	assert.Equal(t, []string{"Go"}, result.Tier1Languages)
+	assert.Equal(t, []string{"Rust"}, result.Tier2CodeLanguages)
+}
+
 func TestAggregateResults_NoTier1(t *testing.T) {
 	files := map[string]int{
 		"HTML": 5000,
@@ -160,10 +209,12 @@ func TestAggregateResults_NoTier1(t *testing.T) {
 	result := AggregateResults(files)
 	assert.False(t, result.HasTier1)
 	assert.Empty(t, result.Tier1Languages)
+	assert.Empty(t, result.Tier2CodeLanguages)
 }
 
 func TestAggregateResults_Empty(t *testing.T) {
 	result := AggregateResults(map[string]int{})
 	assert.False(t, result.HasTier1)
 	assert.Equal(t, 0, result.TotalLOC)
+	assert.Empty(t, result.Tier2CodeLanguages)
 }

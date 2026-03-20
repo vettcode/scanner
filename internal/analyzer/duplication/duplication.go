@@ -27,8 +27,8 @@ type Result struct {
 
 const (
 	tokenWindowSize    = 100    // Rabin-Karp window for token-based detection
-	lineWindowSize     = 6      // rolling window for line-hash fallback
-	minBlockLines      = 6      // minimum lines for a duplicate block
+	lineWindowSize     = 10     // rolling window for line-hash fallback
+	minBlockLines      = 10     // minimum lines for a duplicate block
 	hashBase           = 1000000007
 	samplingThreshold  = 300000 // LOC threshold above which sampling kicks in
 )

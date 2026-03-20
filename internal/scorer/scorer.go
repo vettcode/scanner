@@ -14,7 +14,7 @@ func clamp(v float64) float64 {
 	return math.Max(0, math.Min(100, v))
 }
 
-// --- 3.1 Code Maintainability (20% of overall) ---
+// --- 3.1 Code Maintainability (22% of overall) ---
 
 // MaintainabilityInput holds the raw metrics needed for maintainability scoring.
 type MaintainabilityInput struct {
@@ -34,34 +34,42 @@ func ScoreMaintainability(in MaintainabilityInput) float64 {
 	return complexity*0.40 + duplication*0.30 + nesting*0.15 + fileSize*0.15
 }
 
-// --- 3.2 Security Posture (25% of overall) ---
+// --- 3.2 Security Posture (30% of overall) ---
 
 // SecurityInput holds the raw metrics needed for security scoring.
 type SecurityInput struct {
-	SecretsCount     int
-	CVECritical      int
-	CVEHigh          int
-	CVEMedium        int
-	CVELow           int
-	LicenseIssueCount int
+	SecretsCount       int
+	CVECritical        int // direct dependency CVEs
+	CVEHigh            int
+	CVEMedium          int
+	CVELow             int
+	CVECriticalTrans   int // transitive (indirect) dependency CVEs — weighted at 50%
+	CVEHighTrans       int
+	CVEMediumTrans     int
+	CVELowTrans        int
+	LicenseIssueCount  int
 }
 
 // ScoreSecurity computes the security category score (0-100).
+// Direct CVE multipliers: critical*50, high*25, medium*10, low*2.
+// Transitive CVEs use ~50% multipliers: critical*25, high*12, medium*5, low*1.
 func ScoreSecurity(in SecurityInput) float64 {
-	var secrets float64
-	if in.SecretsCount == 0 {
-		secrets = 100
-	} // else 0
+	// Graduated secrets penalty: 40 points per secret, floors at 0.
+	// 0 secrets → 100, 1 → 60, 2 → 20, 3+ → 0
+	secrets := clamp(100 - float64(in.SecretsCount)*40)
 
-	cves := clamp(100 - float64(in.CVECritical)*50 - float64(in.CVEHigh)*25 -
-		float64(in.CVEMedium)*10 - float64(in.CVELow)*2)
+	directPenalty := float64(in.CVECritical)*50 + float64(in.CVEHigh)*25 +
+		float64(in.CVEMedium)*10 + float64(in.CVELow)*2
+	transPenalty := float64(in.CVECriticalTrans)*25 + float64(in.CVEHighTrans)*12 +
+		float64(in.CVEMediumTrans)*5 + float64(in.CVELowTrans)*1
+	cves := clamp(100 - directPenalty - transPenalty)
 
 	licenses := clamp(100 - float64(in.LicenseIssueCount)*25)
 
 	return secrets*0.35 + cves*0.45 + licenses*0.20
 }
 
-// --- 3.3 Handoff Readiness (20% of overall) ---
+// --- 3.3 Handoff Readiness (22% of overall) ---
 
 // HandoffInput holds the raw metrics needed for handoff scoring.
 type HandoffInput struct {
@@ -89,7 +97,7 @@ func ScoreHandoff(in HandoffInput) float64 {
 	return coverage*0.50 + docScore*0.25 + envScore*0.25
 }
 
-// --- 3.4 Dependency Health (10% of overall) ---
+// --- 3.4 Dependency Health (11% of overall) ---
 
 // DependencyHealthInput holds the raw metrics needed for dependency health scoring.
 type DependencyHealthInput struct {
@@ -134,27 +142,48 @@ func ScoreActivity(in ActivityInput) float64 {
 	return recency*0.40 + velocity*0.30 + consistency*0.30
 }
 
-// --- 3.6 SRE & Infrastructure (10% of overall) ---
+// --- 3.6 SRE & Infrastructure (data-only, not scored) ---
 
-// InfraInput holds the raw metrics needed for infrastructure scoring.
+// InfraInput holds the raw metrics needed for infrastructure assessment.
 type InfraInput struct {
 	IaCDetected        bool
 	CICDDetected       bool
 	MonitoringDetected bool
 }
 
-// ScoreInfra computes the SRE & infrastructure category score (0-100).
-func ScoreInfra(in InfraInput) float64 {
-	var iac, cicd, monitoring float64
-	if in.IaCDetected {
-		iac = 100
-	}
+// InvestmentLevel represents post-acquisition infrastructure investment needed.
+type InvestmentLevel string
+
+const (
+	InvestmentLow    InvestmentLevel = "low"
+	InvestmentMedium InvestmentLevel = "medium"
+	InvestmentHigh   InvestmentLevel = "high"
+)
+
+// InfraAssessment holds the data-only SRE assessment (no numeric score).
+type InfraAssessment struct {
+	IaCDetected        bool
+	CICDDetected       bool
+	MonitoringDetected bool
+	InvestmentLevel    InvestmentLevel
+}
+
+// AssessInfra produces a qualitative infrastructure assessment.
+// SRE is a data-only category — it does not contribute to the overall grade.
+func AssessInfra(in InfraInput) InfraAssessment {
+	level := InvestmentHigh
 	if in.CICDDetected {
-		cicd = 100
-	}
-	if in.MonitoringDetected {
-		monitoring = 100
+		if in.IaCDetected || in.MonitoringDetected {
+			level = InvestmentLow
+		} else {
+			level = InvestmentMedium
+		}
 	}
 
-	return iac*0.30 + cicd*0.60 + monitoring*0.10
+	return InfraAssessment{
+		IaCDetected:        in.IaCDetected,
+		CICDDetected:       in.CICDDetected,
+		MonitoringDetected: in.MonitoringDetected,
+		InvestmentLevel:    level,
+	}
 }

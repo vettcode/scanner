@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "scan_id": "contract-test-security-nightmare",
-  "timestamp": "2026-03-19T04:22:41Z",
+  "timestamp": "2026-03-20T00:00:43Z",
   "scanner_version": "0.1.0-test",
   "repositories": [
     {
@@ -62,8 +62,9 @@
       "pct_files_over_500loc": 0
     },
     "security": {
-      "grade": "D",
+      "grade": "B",
       "secrets_found": 1,
+      "suppressed_secrets": 0,
       "cves": [],
       "cve_summary": {
         "critical": 0,
@@ -107,22 +108,21 @@
       "proprietary_dataset": false
     },
     "infrastructure": {
-      "grade": "F",
       "iac_detected": false,
       "iac_types": [],
       "ci_cd_detected": false,
       "monitoring_detected": false,
-      "monitoring_tools": []
+      "monitoring_tools": [],
+      "post_acquisition_investment": "high"
     }
   },
   "summary": {
     "scored_categories": [
       "maintainability",
       "security",
-      "handoff_readiness",
-      "sre_infrastructure"
+      "handoff_readiness"
     ],
-    "overall_grade": "D+",
+    "overall_grade": "B",
     "top_risks": [],
     "top_strengths": []
   },
@@ -132,9 +132,9 @@
   },
   "warnings": [],
   "integrity": {
-    "scan_checksum": "98777edbe725cb599b845dc0aa8d445eca8529f267c8b8c1ef9a68e2b4e41437",
+    "scan_checksum": "43c39d73e9cc5d99f655c235be5ed2474846c6744b5b5b7eb05e49535ab82356",
     "scanner_public_key_id": "vettcode-scanner-key-2026-03",
-    "scanner_signature": "6YmmJHDZewWu+p3ZZKPf4WIEmXX/9hGsYrNHjWtijV7xCBiY+8D5Szy/+pxHKISAcjw8Pcd70ilw/Hrs3E1xCg==",
+    "scanner_signature": "EtaHMXc1HjF8dDSMfE5Xo/GFuuqm7qzsrGD+lmYuMjKkUsmZMMCM8Z55IxZH4L6t5+VPA0STyeApsmP8OxYdAw==",
     "cosign_nonce": null,
     "platform_cosignature": null,
     "platform_public_key_id": null,

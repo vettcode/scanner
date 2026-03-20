@@ -153,6 +153,9 @@ func (f *TerminalFormatter) formatSecurity(w io.Writer, s *models.Security) {
 		secretsStr = c.red(secretsStr)
 	}
 	fmt.Fprintf(w, "  Secrets Found:         %s\n", secretsStr)
+	if s.SuppressedSecrets > 0 {
+		fmt.Fprintf(w, "    %s\n", c.gray(fmt.Sprintf("ℹ  %d additional matches not counted (found in tests, docs, or examples)", s.SuppressedSecrets)))
+	}
 	if s.SecretsFound > 0 {
 		fmt.Fprintf(w, "  %s\n", c.yellow("💡 Rotate exposed keys and remove hardcoded credentials."))
 	}
@@ -167,9 +170,22 @@ func (f *TerminalFormatter) formatSecurity(w io.Writer, s *models.Security) {
 
 	totalCVEs := s.CVESummary.Critical + s.CVESummary.High + s.CVESummary.Medium + s.CVESummary.Low
 	if totalCVEs > 0 {
+		// Count direct vs transitive
+		var directCount, transCount int
+		for _, cve := range s.CVEs {
+			if cve.Direct {
+				directCount++
+			} else {
+				transCount++
+			}
+		}
 		breakdown := fmt.Sprintf("%d critical, %d high, %d medium, %d low",
 			s.CVESummary.Critical, s.CVESummary.High, s.CVESummary.Medium, s.CVESummary.Low)
 		fmt.Fprintf(w, "  Known CVEs:            %d (%s)\n", totalCVEs, breakdown)
+		if transCount > 0 {
+			fmt.Fprintf(w, "                         %d direct, %d transitive %s\n",
+				directCount, transCount, c.gray("(transitive CVEs weighted 50% in scoring)"))
+		}
 		for i, cve := range s.CVEs {
 			if i >= 5 {
 				remaining := len(s.CVEs) - 5
@@ -182,8 +198,12 @@ func (f *TerminalFormatter) formatSecurity(w io.Writer, s *models.Security) {
 			} else {
 				fix = "fix: " + fix
 			}
-			fmt.Fprintf(w, "    %d. %s  %s@%s  (%s)\n",
-				i+1, c.red(string(cve.Severity)), cve.Package, cve.CurrentVersion, fix)
+			depType := ""
+			if !cve.Direct {
+				depType = " [transitive]"
+			}
+			fmt.Fprintf(w, "    %d. %s  %s@%s%s  (%s)\n",
+				i+1, c.red(string(cve.Severity)), cve.Package, cve.CurrentVersion, c.gray(depType), fix)
 		}
 	} else {
 		fmt.Fprintf(w, "  Known CVEs:            %d\n", totalCVEs)
@@ -270,8 +290,11 @@ func (f *TerminalFormatter) formatAIDetection(w io.Writer, ai models.AIDetection
 
 func (f *TerminalFormatter) formatInfrastructure(w io.Writer, infra models.InfrastructureDetection, externalServices []string) {
 	c := f.Color
-	grade := gradeStr(infra.Grade)
-	fmt.Fprintln(w, c.sectionHeader("INFRASTRUCTURE", grade))
+	investLabel := strings.ToUpper(infra.PostAcquisitionInvestment)
+	if investLabel == "" {
+		investLabel = "N/A"
+	}
+	fmt.Fprintln(w, c.sectionHeader("INFRASTRUCTURE", "Investment: "+investLabel))
 	fmt.Fprintf(w, "  IaC:                   %s\n", c.yesNo(infra.IaCDetected, strings.Join(infra.IaCTypes, ", ")))
 	if !infra.IaCDetected {
 		fmt.Fprintf(w, "  %s\n", c.yellow("💡 IaC in a separate repo? Add it to the scan scope."))

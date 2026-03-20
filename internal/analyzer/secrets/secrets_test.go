@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,7 @@ const awsKey = "AKIAIOSFODNN7ABCDEFG"
 	files := []walker.FileInfo{{Path: path, RelPath: "config.go"}}
 	r := Scan(files)
 	assert.Equal(t, 1, r.SecretsCount)
+	assert.Equal(t, 85, r.Findings[0].Confidence)
 }
 
 func TestScan_PrivateKey(t *testing.T) {
@@ -38,6 +40,7 @@ MIIEpAIBAAKCAQEA0Z
 	files := []walker.FileInfo{{Path: path, RelPath: "key.pem"}}
 	r := Scan(files)
 	assert.GreaterOrEqual(t, r.SecretsCount, 1)
+	assert.Equal(t, 70, r.Findings[0].Confidence)
 }
 
 func TestScan_GenericSecret(t *testing.T) {
@@ -49,6 +52,10 @@ api_key = "abc123def456ghi789jkl"
 	files := []walker.FileInfo{{Path: path, RelPath: "app.py"}}
 	r := Scan(files)
 	assert.GreaterOrEqual(t, r.SecretsCount, 1)
+	// Generic secrets have base confidence 50
+	for _, f := range r.Findings {
+		assert.GreaterOrEqual(t, f.Confidence, confidenceThreshold)
+	}
 }
 
 func TestScan_NoSecretsInCleanCode(t *testing.T) {
@@ -68,12 +75,14 @@ func main() {
 
 func TestScan_SkipsTestFiles(t *testing.T) {
 	dir := t.TempDir()
+	// "EXAMPLE" in value triggers placeholder signal (-40), plus test_path (-30)
+	// base 85 - 30 - 40 = 15 → dropped
 	path := writeFile(t, dir, "config_test.go", `package config
 const testKey = "AKIAIOSFODNN7EXAMPLE"
 `)
 	files := []walker.FileInfo{{Path: path, RelPath: "config_test.go"}}
 	r := Scan(files)
-	assert.Equal(t, 0, r.SecretsCount) // test files are skipped
+	assert.Equal(t, 0, r.SecretsCount)
 }
 
 func TestScan_AllowlistFilters(t *testing.T) {
@@ -84,7 +93,7 @@ const secret = "CHANGEME_this_is_example"
 `)
 	files := []walker.FileInfo{{Path: path, RelPath: "config.go"}}
 	r := Scan(files)
-	assert.Equal(t, 0, r.SecretsCount) // filtered by allowlist
+	assert.Equal(t, 0, r.SecretsCount) // filtered by placeholder/example signals
 }
 
 func TestScan_DatabaseURL(t *testing.T) {
@@ -95,6 +104,7 @@ var connStr = "postgres://user:pass123@localhost:5432/mydb"
 	files := []walker.FileInfo{{Path: path, RelPath: "db.go"}}
 	r := Scan(files)
 	assert.GreaterOrEqual(t, r.SecretsCount, 1)
+	assert.Equal(t, 75, r.Findings[0].Confidence)
 }
 
 func TestShannonEntropy(t *testing.T) {
@@ -125,7 +135,7 @@ const api_secret = "a9f8b7c6d5e4f3a2b1c0d9e8f7a6b5c4"
 `)
 	files := []walker.FileInfo{{Path: path, RelPath: "mixed.go"}}
 	r := Scan(files)
-	// Should detect at least 2: the AWS key via pattern + the hex secret via entropy
+	// Should detect at least 2: the AWS key via pattern + the hex secret via generic/entropy
 	assert.GreaterOrEqual(t, r.SecretsCount, 2, "entropy detection should work independently of pattern matching")
 }
 
@@ -184,7 +194,7 @@ var token = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 `)
 	files := []walker.FileInfo{{Path: path, RelPath: "config.go"}}
 	r := Scan(files)
-	assert.Equal(t, 0, r.SecretsCount, "placeholder/example values should be filtered by allowlist")
+	assert.Equal(t, 0, r.SecretsCount, "placeholder/example values should be filtered by signals")
 }
 
 func TestScan_NoFalsePositives_SnakeCaseIdentifiers(t *testing.T) {
@@ -246,7 +256,7 @@ $env = ['PGPASSWORD' => $config['password']];
 
 func TestScan_NoFalsePositives_TemplateInterpolation(t *testing.T) {
 	dir := t.TempDir()
-	path := writeFile(t, dir, "template.blade.php", `<template x-for="(page, index) in pages" :key="` + "`page-${page.type}-${page.value}-${page.id || index}`" + `">
+	path := writeFile(t, dir, "template.blade.php", `<template x-for="(page, index) in pages" :key="`+"`page-${page.type}-${page.value}-${page.id || index}`"+`">
 `)
 	path2 := writeFile(t, dir, "messages.php", `<?php
 $customKey = "validation.custom.{$attribute}.{$lowerRule}";
@@ -267,15 +277,6 @@ func TestIsCommentLine(t *testing.T) {
 	assert.True(t, isCommentLine("<!-- html comment"))
 	assert.False(t, isCommentLine(`password = "hardcoded123"`))
 	assert.False(t, isCommentLine(`  const key = "abc"`))
-}
-
-func TestIsVariableReference(t *testing.T) {
-	assert.True(t, isVariableReference("$connection['password']"))
-	assert.True(t, isVariableReference("$config['api_secret']"))
-	assert.True(t, isVariableReference("--password=.$connection"))
-	assert.True(t, isVariableReference("self->getPassword()"))
-	assert.False(t, isVariableReference("realPassword!2024"))
-	assert.False(t, isVariableReference("sk_live_abcdefg12345"))
 }
 
 func TestScan_GenericSecret_HardcodedPassword(t *testing.T) {
@@ -353,16 +354,14 @@ func TestScan_BinaryLikeContent(t *testing.T) {
 	assert.GreaterOrEqual(t, r.SecretsCount, 0)
 }
 
-// TestScan_SkipsVariousTestFiles verifies that the secrets scanner skips test files.
-// Note: The scanner uses path-based pattern matching via isTestOrFixture() (e.g.,
-// "_test.go", "test_", "spec/") rather than the walker.FileInfo.IsTest flag. The
-// IsTest flag is set here for correctness, but the scanner's skip logic is purely
-// path-based. If you add new test file patterns, update isTestOrFixture() in secrets.go.
+// TestScan_SkipsVariousTestFiles verifies that the secrets scanner handles test files.
+// In the confidence system, test paths get a -30 signal. Combined with the "EXAMPLE"
+// placeholder in these values (-40 placeholder signal), confidence drops to 15 → dropped.
 func TestScan_SkipsVariousTestFiles(t *testing.T) {
 	dir := t.TempDir()
 	testFiles := map[string]string{
-		"app_test.go":        `const key = "AKIAIOSFODNN7EXAMPLE"`,
-		"test_secrets.py":    `AWS_KEY = "AKIAIOSFODNN7EXAMPLE"`,
+		"app_test.go":         `const key = "AKIAIOSFODNN7EXAMPLE"`,
+		"test_secrets.py":     `AWS_KEY = "AKIAIOSFODNN7EXAMPLE"`,
 		"spec/secret_spec.rb": `KEY = "AKIAIOSFODNN7EXAMPLE"`,
 	}
 	var files []walker.FileInfo
@@ -371,7 +370,7 @@ func TestScan_SkipsVariousTestFiles(t *testing.T) {
 		files = append(files, walker.FileInfo{Path: p, RelPath: name, IsTest: true})
 	}
 	r := Scan(files)
-	assert.Equal(t, 0, r.SecretsCount, "all test files should be skipped")
+	assert.Equal(t, 0, r.SecretsCount, "test files with example values should have low confidence")
 }
 
 // --- Tests for expanded secret patterns (SC-084) ---
@@ -442,27 +441,27 @@ func TestScan_GitHubAppToken(t *testing.T) {
 
 func TestScan_SkipsExampleDirs(t *testing.T) {
 	dir := t.TempDir()
-	// Secrets in examples/ directories should be skipped (demo code, not production)
+	// Generic secret in examples/ directory: base 50 - 30 (test_path) = 20 → dropped
 	path := writeFile(t, dir, "examples/auth/index.js",
 		`const session = { secret: 'realPassword!2024' }`)
 	files := []walker.FileInfo{{Path: path, RelPath: "examples/auth/index.js"}}
 	r := Scan(files)
-	assert.Equal(t, 0, r.SecretsCount, "examples/ directory should be skipped")
+	assert.Equal(t, 0, r.SecretsCount, "examples/ directory should push generic secrets below threshold")
 }
 
 func TestScan_SkipsTestDirSingular(t *testing.T) {
 	dir := t.TempDir()
-	// Secrets in test/ (singular) directories should be skipped
+	// Generic secret in test/ directory: base 50 - 30 (test_path) = 20 → dropped
 	path := writeFile(t, dir, "test/unit/config.js",
 		`const auth = { password: 's00pers3cret' }`)
 	files := []walker.FileInfo{{Path: path, RelPath: "test/unit/config.js"}}
 	r := Scan(files)
-	assert.Equal(t, 0, r.SecretsCount, "test/ directory should be skipped")
+	assert.Equal(t, 0, r.SecretsCount, "test/ directory should push generic secrets below threshold")
 }
 
 func TestScan_SkipsReadmeFiles(t *testing.T) {
 	dir := t.TempDir()
-	// READMEs contain documentation examples, not real secrets
+	// README files: "readme" in testFilePatterns → -30
 	path := writeFile(t, dir, "README.md", `
   auth: {
     username: 'janedoe',
@@ -514,6 +513,7 @@ const awsKey = "AKIAIOSFODNN7ABCDEFG"
 	assert.Equal(t, 2, r.Findings[0].Line)
 	assert.Equal(t, "AWS Access Key", r.Findings[0].Name)
 	assert.Equal(t, "aws", r.Findings[0].Category)
+	assert.Equal(t, 85, r.Findings[0].Confidence)
 }
 
 func TestScan_SkipsRegexPatternDefinitions(t *testing.T) {
@@ -535,14 +535,14 @@ func TestScan_SkipsRegexPatternDefinitions(t *testing.T) {
 			path := writeFile(t, dir, tt.file, tt.content)
 			files := []walker.FileInfo{{Path: path, RelPath: tt.file}}
 			r := Scan(files)
-			assert.Equal(t, 0, r.SecretsCount, "%s regex pattern definition should be allowlisted", tt.name)
+			assert.Equal(t, 0, r.SecretsCount, "%s regex pattern definition should be suppressed by regex_def signal", tt.name)
 		})
 	}
 }
 
 func TestScan_SkipsLocaleFiles(t *testing.T) {
 	dir := t.TempDir()
-	// Locale/translation files should be skipped entirely
+	// Locale/translation files should be skipped entirely (hard pre-filter)
 	path := writeFile(t, dir, "config/locales/server.en.yml",
 		`password: "Enter a strong password for your account"`)
 	files := []walker.FileInfo{{Path: path, RelPath: "config/locales/server.en.yml"}}
@@ -591,5 +591,229 @@ func TestScan_SkipsTemplateEnvVars(t *testing.T) {
 `)
 	files := []walker.FileInfo{{Path: path, RelPath: "release.yml"}}
 	r := Scan(files)
-	assert.Equal(t, 0, r.SecretsCount, "template env var references should be allowlisted")
+	assert.Equal(t, 0, r.SecretsCount, "template env var references should be suppressed by signals")
+}
+
+// --- Confidence-specific tests ---
+
+func TestConfidence_BaseScores(t *testing.T) {
+	assert.Equal(t, 85, baseConfidence["aws"])
+	assert.Equal(t, 85, baseConfidence["api_key"])
+	assert.Equal(t, 80, baseConfidence["token"])
+	assert.Equal(t, 75, baseConfidence["bearer"])
+	assert.Equal(t, 70, baseConfidence["private_key"])
+	assert.Equal(t, 75, baseConfidence["connection_string"])
+	assert.Equal(t, 50, baseConfidence["generic"])
+	assert.Equal(t, 40, baseConfidence["entropy"])
+}
+
+func TestConfidence_FileSignals(t *testing.T) {
+	// Test path signal (-30)
+	signals := computeFileSignals("/repo/test/config.go")
+	assert.Contains(t, signalNames(signals), "test_path")
+	for _, s := range signals {
+		if s.Name == "test_path" {
+			assert.Equal(t, -30, s.Delta)
+		}
+	}
+
+	// Docs path signal (-40)
+	signals = computeFileSignals("/repo/docs/api/auth.md")
+	assert.Contains(t, signalNames(signals), "docs_path")
+	for _, s := range signals {
+		if s.Name == "docs_path" {
+			assert.Equal(t, -40, s.Delta)
+		}
+	}
+
+	// Examples path gets docs_path signal (-40)
+	signals = computeFileSignals("/repo/examples/auth/index.js")
+	assert.Contains(t, signalNames(signals), "docs_path")
+
+	// Config template signal
+	signals = computeFileSignals("/repo/.env.example")
+	found := false
+	for _, s := range signals {
+		if s.Name == "config_template" {
+			found = true
+			assert.Equal(t, -35, s.Delta)
+		}
+	}
+	assert.True(t, found, "should have config_template signal")
+
+	// Production file: no signals
+	signals = computeFileSignals("/repo/src/config.go")
+	assert.Empty(t, signals)
+}
+
+func TestConfidence_LineSignals(t *testing.T) {
+	// Comment line
+	signals := computeLineSignals("  // secret_key = 'abc123'")
+	hasComment := false
+	for _, s := range signals {
+		if s.Name == "comment" {
+			hasComment = true
+			assert.Equal(t, -25, s.Delta)
+		}
+	}
+	assert.True(t, hasComment)
+
+	// Placeholder
+	signals = computeLineSignals(`const key = "CHANGEME"`)
+	hasPlaceholder := false
+	for _, s := range signals {
+		if s.Name == "placeholder" {
+			hasPlaceholder = true
+			assert.Equal(t, -40, s.Delta)
+		}
+	}
+	assert.True(t, hasPlaceholder)
+
+	// Regex definition
+	signals = computeLineSignals(`var p = regexp.MustCompile("secret")`)
+	hasRegex := false
+	for _, s := range signals {
+		if s.Name == "regex_def" {
+			hasRegex = true
+			assert.Equal(t, -50, s.Delta)
+		}
+	}
+	assert.True(t, hasRegex)
+
+	// Env lookup
+	signals = computeLineSignals(`key = os.getenv("SECRET_KEY")`)
+	hasEnv := false
+	for _, s := range signals {
+		if s.Name == "env_lookup" {
+			hasEnv = true
+			assert.Equal(t, -40, s.Delta)
+		}
+	}
+	assert.True(t, hasEnv)
+
+	// Template
+	signals = computeLineSignals(`token: "{{ .Env.TOKEN }}"`)
+	hasTemplate := false
+	for _, s := range signals {
+		if s.Name == "template" {
+			hasTemplate = true
+			assert.Equal(t, -35, s.Delta)
+		}
+	}
+	assert.True(t, hasTemplate)
+}
+
+func TestConfidence_ValueSignals(t *testing.T) {
+	// Natural language
+	signals := computeValueSignals("keyboard cat secret")
+	assert.Contains(t, signalNames(signals), "natural_language")
+
+	// Variable reference
+	signals = computeValueSignals("$connection['password']")
+	assert.Contains(t, signalNames(signals), "variable_ref")
+
+	// Identifier
+	signals = computeValueSignals("HTTP_API_KEY")
+	assert.Contains(t, signalNames(signals), "identifier")
+	signals = computeValueSignals("oauth-client-credential")
+	assert.Contains(t, signalNames(signals), "identifier")
+
+	// Interpolation
+	signals = computeValueSignals("#{klass},#{db}")
+	assert.Contains(t, signalNames(signals), "interpolation")
+
+	// URL path
+	signals = computeValueSignals("https://example.com/api")
+	assert.Contains(t, signalNames(signals), "url_path")
+
+	// Placeholder value
+	signals = computeValueSignals("password123")
+	assert.Contains(t, signalNames(signals), "placeholder_value")
+
+	// Real secret: no signals
+	signals = computeValueSignals("aB3xkL9pQ2wX7mR5n")
+	assert.Empty(t, signals, "real-looking secret should have no value signals")
+}
+
+func TestConfidence_HighFindingCount(t *testing.T) {
+	dir := t.TempDir()
+	// Create a file with 12 generic secrets — all get -15 from high_finding_count
+	var lines []string
+	for i := 0; i < 12; i++ {
+		lines = append(lines, `password = "realPassword!`+string(rune('A'+i))+`_xY9z"`)
+	}
+	content := strings.Join(lines, "\n")
+	path := writeFile(t, dir, "config.go", content)
+	files := []walker.FileInfo{{Path: path, RelPath: "config.go"}}
+	r := Scan(files)
+	// base 50 - 15 (high_finding_count) = 35 → suppressed (30-49 range)
+	assert.Equal(t, 0, r.SecretsCount, "files with 10+ findings should have all findings penalized")
+	assert.Greater(t, r.SuppressedCount, 0, "should have suppressed findings")
+}
+
+func TestConfidence_RealAWSKeyInTestFile(t *testing.T) {
+	dir := t.TempDir()
+	// A real-looking AWS key (no "EXAMPLE") in a test file should still be flagged
+	// base 85 - 30 (test_path) = 55 → above threshold
+	path := writeFile(t, dir, "config_test.go", `package config
+const key = "AKIA1234567890ABCDEF"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "config_test.go"}}
+	r := Scan(files)
+	assert.Equal(t, 1, r.SecretsCount, "real AWS key in test file should still be flagged (confidence 55)")
+	assert.Equal(t, 55, r.Findings[0].Confidence)
+}
+
+func TestConfidence_SuppressedCount(t *testing.T) {
+	dir := t.TempDir()
+	// Private key in test file: base 70 - 30 (test_path) = 40 → suppressed (30-49)
+	path := writeFile(t, dir, "test/fixtures/ssl.go", `package ssl
+const pk = "-----BEGIN RSA PRIVATE KEY-----"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: "test/fixtures/ssl.go"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "should not report low-confidence findings")
+	assert.Equal(t, 1, r.SuppressedCount, "should count suppressed findings")
+}
+
+func TestConfidence_ConfigTemplateFile(t *testing.T) {
+	dir := t.TempDir()
+	// Generic secret in .env.example: base 50 - 35 (config_template) = 15 → dropped
+	path := writeFile(t, dir, ".env.example", `
+password = "change_me_before_deploy"
+`)
+	files := []walker.FileInfo{{Path: path, RelPath: ".env.example"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, ".env.example should not report generic secrets")
+}
+
+func TestConfidence_BearerTokenInTestFile_Suppressed(t *testing.T) {
+	dir := t.TempDir()
+	// Bearer token in test file: base 75 - 30 (test_path) = 45 → suppressed
+	path := writeFile(t, dir, "credentials_test.go",
+		`Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test"`)
+	files := []walker.FileInfo{{Path: path, RelPath: "credentials_test.go"}}
+	r := Scan(files)
+	assert.Equal(t, 0, r.SecretsCount, "Bearer token in test file should be suppressed (75 - 30 = 45 < 50)")
+}
+
+func TestConfidence_BearerTokenInProductionFile_Reported(t *testing.T) {
+	dir := t.TempDir()
+	// Bearer token in production file: base 75, no file signals → reported
+	path := writeFile(t, dir, "auth.go",
+		`Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.prod"`)
+	files := []walker.FileInfo{{Path: path, RelPath: "auth.go"}}
+	r := Scan(files)
+	assert.Equal(t, 1, r.SecretsCount, "Bearer token in production file should be reported (confidence 75)")
+	assert.Equal(t, 75, r.Findings[0].Confidence)
+	assert.Equal(t, "bearer", r.Findings[0].Category)
+}
+
+// signalNames extracts signal names from a slice for easy assertion.
+func signalNames(signals []Signal) []string {
+	names := make([]string, len(signals))
+	for i, s := range signals {
+		names[i] = s.Name
+	}
+	return names
 }

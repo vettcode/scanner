@@ -32,6 +32,10 @@ type RepoMetrics struct {
 	CVEHigh            int
 	CVEMedium          int
 	CVELow             int
+	CVECriticalTrans   int // transitive (indirect) dependency CVEs
+	CVEHighTrans       int
+	CVEMediumTrans     int
+	CVELowTrans        int
 	LicenseIssueCount  int
 	EstTestCoveragePct float64
 	EnvVarCount        int
@@ -62,6 +66,10 @@ type AggregatedMetrics struct {
 	CVEHigh            int
 	CVEMedium          int
 	CVELow             int
+	CVECriticalTrans   int // transitive (indirect) dependency CVEs
+	CVEHighTrans       int
+	CVEMediumTrans     int
+	CVELowTrans        int
 	LicenseIssueCount  int
 	EstTestCoveragePct float64
 	EnvVarCount        int
@@ -107,6 +115,10 @@ func Aggregate(repos []RepoMetrics) AggregatedMetrics {
 		a.CVEHigh += r.CVEHigh
 		a.CVEMedium += r.CVEMedium
 		a.CVELow += r.CVELow
+		a.CVECriticalTrans += r.CVECriticalTrans
+		a.CVEHighTrans += r.CVEHighTrans
+		a.CVEMediumTrans += r.CVEMediumTrans
+		a.CVELowTrans += r.CVELowTrans
 		a.LicenseIssueCount += r.LicenseIssueCount
 		a.EnvVarCount += r.EnvVarCount
 

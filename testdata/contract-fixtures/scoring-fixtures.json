@@ -28,9 +28,8 @@
     "security_grade": "A",
     "handoff_score": 79.7196261682243,
     "handoff_grade": "C+",
-    "infra_score": 90,
-    "infra_grade": "A-",
-    "overall_score": 93.25856697819314,
+    "infra_investment": "low",
+    "overall_score": 93.97069967163424,
     "overall_grade": "A",
     "pricing_tier": "starter"
   },
@@ -63,10 +62,9 @@
     "security_grade": "A",
     "handoff_score": 32.5,
     "handoff_grade": "F",
-    "infra_score": 0,
-    "infra_grade": "F",
-    "overall_score": 68.66666666666667,
-    "overall_grade": "D+",
+    "infra_investment": "high",
+    "overall_score": 79.93243243243244,
+    "overall_grade": "C+",
     "pricing_tier": "starter"
   },
   {
@@ -94,14 +92,13 @@
     "total_loc": 136,
     "maintainability_score": 100,
     "maintainability_grade": "A",
-    "security_score": 65,
-    "security_grade": "D",
+    "security_score": 86,
+    "security_grade": "B",
     "handoff_score": 74.21052631578948,
     "handoff_grade": "C",
-    "infra_score": 0,
-    "infra_grade": "F",
-    "overall_score": 68.12280701754386,
-    "overall_grade": "D+",
+    "infra_investment": "high",
+    "overall_score": 86.65718349928876,
+    "overall_grade": "B",
     "pricing_tier": "starter"
   }
 ]

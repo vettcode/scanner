@@ -71,14 +71,20 @@ require (
 )
 `)
 	deps := parseGo(dir)
-	assert.Len(t, deps, 2) // excludes indirect
+	assert.Len(t, deps, 3) // includes indirect with Direct=false
 	names := make(map[string]bool)
+	directMap := make(map[string]bool)
 	for _, d := range deps {
 		names[d.Name] = true
+		directMap[d.Name] = d.Direct
 		assert.Equal(t, "go", d.Ecosystem)
 	}
 	assert.True(t, names["github.com/gin-gonic/gin"])
 	assert.True(t, names["github.com/stretchr/testify"])
+	assert.True(t, names["golang.org/x/crypto"])
+	assert.True(t, directMap["github.com/gin-gonic/gin"], "direct dep should have Direct=true")
+	assert.True(t, directMap["github.com/stretchr/testify"], "direct dep should have Direct=true")
+	assert.False(t, directMap["golang.org/x/crypto"], "indirect dep should have Direct=false")
 }
 
 func TestParseGo_SingleLineRequire(t *testing.T) {
@@ -91,9 +97,13 @@ require github.com/pkg/errors v0.9.1
 require golang.org/x/sys v0.5.0 // indirect
 `)
 	deps := parseGo(dir)
-	require.Len(t, deps, 1) // excludes indirect
+	require.Len(t, deps, 2) // includes indirect with Direct=false
 	assert.Equal(t, "github.com/pkg/errors", deps[0].Name)
 	assert.Equal(t, "0.9.1", deps[0].Version)
+	assert.True(t, deps[0].Direct, "direct dep should have Direct=true")
+	assert.Equal(t, "golang.org/x/sys", deps[1].Name)
+	assert.Equal(t, "0.5.0", deps[1].Version)
+	assert.False(t, deps[1].Direct, "indirect dep should have Direct=false")
 }
 
 func TestParsePHP(t *testing.T) {

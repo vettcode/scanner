@@ -30,6 +30,19 @@ var Tier1Languages = map[string]Info{
 
 // Tier2Languages are detection + LOC only.
 var Tier2Languages = map[string]Info{
+	"C":          {Name: "C", Tier: Tier2, Extensions: []string{".c", ".h"}},
+	"C++":        {Name: "C++", Tier: Tier2, Extensions: []string{".cpp", ".cc", ".cxx", ".hpp", ".hxx", ".hh"}},
+	"C#":         {Name: "C#", Tier: Tier2, Extensions: []string{".cs"}},
+	"Rust":       {Name: "Rust", Tier: Tier2, Extensions: []string{".rs"}},
+	"Swift":      {Name: "Swift", Tier: Tier2, Extensions: []string{".swift"}},
+	"Kotlin":     {Name: "Kotlin", Tier: Tier2, Extensions: []string{".kt", ".kts"}},
+	"Scala":      {Name: "Scala", Tier: Tier2, Extensions: []string{".scala"}},
+	"R":          {Name: "R", Tier: Tier2, Extensions: []string{".r", ".R"}},
+	"Lua":        {Name: "Lua", Tier: Tier2, Extensions: []string{".lua"}},
+	"Perl":       {Name: "Perl", Tier: Tier2, Extensions: []string{".pl", ".pm"}},
+	"Elixir":     {Name: "Elixir", Tier: Tier2, Extensions: []string{".ex", ".exs"}},
+	"Erlang":     {Name: "Erlang", Tier: Tier2, Extensions: []string{".erl", ".hrl"}},
+	"Dart":       {Name: "Dart", Tier: Tier2, Extensions: []string{".dart"}},
 	"HTML":       {Name: "HTML", Tier: Tier2, Extensions: []string{".html", ".htm"}},
 	"CSS":        {Name: "CSS", Tier: Tier2, Extensions: []string{".css", ".scss", ".sass", ".less"}},
 	"SQL":        {Name: "SQL", Tier: Tier2, Extensions: []string{".sql"}},
@@ -105,6 +118,20 @@ func DetectByExtension(ext string) string {
 // DetectByFilename returns the language name for a special filename, or empty string.
 func DetectByFilename(filename string) string {
 	return filenameToLanguage[filename]
+}
+
+// tier2CodeSet contains Tier 2 languages that are "code" (not config/markup).
+// Users expect deep analysis for these but it isn't available yet.
+var tier2CodeSet = map[string]bool{
+	"C": true, "C++": true, "C#": true, "Rust": true, "Swift": true,
+	"Kotlin": true, "Scala": true, "R": true, "Lua": true, "Perl": true,
+	"Elixir": true, "Erlang": true, "Dart": true,
+}
+
+// IsTier2Code returns true if the language is a Tier 2 code language
+// (as opposed to config/markup like HTML, CSS, YAML, etc.).
+func IsTier2Code(lang string) bool {
+	return tier2CodeSet[lang]
 }
 
 // IsTier1 returns true if the language name is a Tier 1 language.

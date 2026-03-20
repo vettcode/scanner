@@ -79,8 +79,7 @@ type scoringFixture struct {
 	SecurityGrade        models.Grade `json:"security_grade"`
 	HandoffScore         float64      `json:"handoff_score"`
 	HandoffGrade         models.Grade `json:"handoff_grade"`
-	InfraScore           float64      `json:"infra_score"`
-	InfraGrade           models.Grade `json:"infra_grade"`
+	InfraInvestment      string       `json:"infra_investment"`
 	OverallScore         float64      `json:"overall_score"`
 	OverallGrade         models.Grade `json:"overall_grade"`
 
@@ -241,19 +240,17 @@ func TestGenerateContractFixtures(t *testing.T) {
 			})
 			handoffGrade := scorer.ScoreToGrade(handoffScore)
 
-			infraScore := scorer.ScoreInfra(scorer.InfraInput{
+			infraAssessment := scorer.AssessInfra(scorer.InfraInput{
 				IaCDetected:        infraResult.HasIaC,
 				CICDDetected:       infraResult.HasCICD,
 				MonitoringDetected: infraResult.HasMonitoring,
 			})
-			infraGrade := scorer.ScoreToGrade(infraScore)
 
-			// Build category scores for overall calculation
+			// Build category scores for overall calculation (5 scored categories; SRE is data-only)
 			categoryScores := []scorer.CategoryScore{
 				{Name: "maintainability", Score: maintScore},
 				{Name: "security", Score: secScore},
 				{Name: "handoff_readiness", Score: handoffScore},
-				{Name: "sre_infrastructure", Score: infraScore},
 			}
 			overallScore := scorer.OverallScore(categoryScores)
 			overallGrade := scorer.ScoreToGrade(overallScore)
@@ -348,7 +345,7 @@ func TestGenerateContractFixtures(t *testing.T) {
 			}
 
 			// ----- Build scored categories -----
-			scoredCategories := []string{"maintainability", "security", "handoff_readiness", "sre_infrastructure"}
+			scoredCategories := []string{"maintainability", "security", "handoff_readiness"}
 
 			// ----- Build summary -----
 			summaryOut := models.Summary{
@@ -438,13 +435,13 @@ func TestGenerateContractFixtures(t *testing.T) {
 						ProprietaryDataset: aiResult.HasProprietaryData,
 					},
 					Infrastructure: models.InfrastructureDetection{
-						Grade:              &infraGrade,
-						IaCDetected:        infraResult.HasIaC,
-						IaCTypes:           infraResult.IaCTools,
-						CICDDetected:       infraResult.HasCICD,
-						CICDProvider:       cicdProvider,
-						MonitoringDetected: infraResult.HasMonitoring,
-						MonitoringTools:    infraResult.MonitorTools,
+						IaCDetected:               infraResult.HasIaC,
+						IaCTypes:                  infraResult.IaCTools,
+						CICDDetected:              infraResult.HasCICD,
+						CICDProvider:              cicdProvider,
+						MonitoringDetected:        infraResult.HasMonitoring,
+						MonitoringTools:           infraResult.MonitorTools,
+						PostAcquisitionInvestment: string(infraAssessment.InvestmentLevel),
 					},
 				},
 				Summary:     summaryOut,
@@ -529,8 +526,7 @@ func TestGenerateContractFixtures(t *testing.T) {
 				SecurityGrade:        secGrade,
 				HandoffScore:         handoffScore,
 				HandoffGrade:         handoffGrade,
-				InfraScore:           infraScore,
-				InfraGrade:           infraGrade,
+				InfraInvestment:      string(infraAssessment.InvestmentLevel),
 				OverallScore:         overallScore,
 				OverallGrade:         overallGrade,
 

@@ -38,12 +38,13 @@ type CVESummary struct {
 
 // Vulnerability represents a single CVE finding.
 type Vulnerability struct {
-	ID          string
-	Severity    string // "critical", "high", "medium", "low"
-	Package     string
-	Version     string
+	ID           string
+	Severity     string // "critical", "high", "medium", "low"
+	Package      string
+	Version      string
 	FixedVersion string
-	Ecosystem   string
+	Ecosystem    string
+	Direct       bool // true if the vulnerable dependency is direct (not transitive)
 }
 
 // osvQuery is the request payload for OSV API.
@@ -176,6 +177,7 @@ func LookupCVEs(dependencies []deps.Dependency, offline bool) *CVEResult {
 				Version:      dep.Version,
 				FixedVersion: v.fixedVersion,
 				Ecosystem:    dep.Ecosystem,
+				Direct:       dep.Direct,
 			})
 		}
 	}
@@ -414,6 +416,7 @@ func lookupSnapshot(r *CVEResult, dep deps.Dependency, osvEco string) {
 			Version:      dep.Version,
 			FixedVersion: e.FixedVersion,
 			Ecosystem:    dep.Ecosystem,
+			Direct:       dep.Direct,
 		})
 	}
 }

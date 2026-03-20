@@ -86,7 +86,11 @@ type HotspotFile struct {
 // Security metrics.
 type Security struct {
 	Grade                *Grade           `json:"grade"`
-	SecretsFound         int              `json:"secrets_found"`
+	SecretsFound int `json:"secrets_found"`
+	// SuppressedSecrets is the count of pattern matches that scored below the
+	// confidence threshold (e.g., matches found in test files, documentation,
+	// or commented-out code). These are not counted in SecretsFound.
+	SuppressedSecrets int `json:"suppressed_secrets"`
 	SecretFindings       []SecretFinding  `json:"-"` // terminal display only, never in JSON
 	CVEs                 []CVE            `json:"cves"`
 	CVESummary           CVESummary       `json:"cve_summary"`
@@ -99,10 +103,11 @@ type Security struct {
 // SecretFinding represents a detected secret for terminal display.
 type SecretFinding struct {
 	// Path is the real file path, used only for terminal display (never serialized to JSON).
-	Path     string `json:"-"`
-	Line     int    `json:"-"`
-	Name     string `json:"-"`
-	Category string `json:"-"`
+	Path       string `json:"-"`
+	Line       int    `json:"-"`
+	Name       string `json:"-"`
+	Category   string `json:"-"`
+	Confidence int    `json:"-"`
 }
 
 // CVE represents a known vulnerability.
@@ -113,6 +118,7 @@ type CVE struct {
 	CurrentVersion string   `json:"current_version"`
 	FixedIn        string   `json:"fixed_in"`
 	Repo           string   `json:"repo"`
+	Direct         bool     `json:"direct"`
 }
 
 // CVESummary counts CVEs by severity.
@@ -208,15 +214,15 @@ type AIDetection struct {
 	ProprietaryDataset bool  `json:"proprietary_dataset"`
 }
 
-// InfrastructureDetection holds infrastructure detection results.
+// InfrastructureDetection holds infrastructure detection results (data-only, no grade).
 type InfrastructureDetection struct {
-	Grade            *Grade   `json:"grade"`
-	IaCDetected      bool     `json:"iac_detected"`
-	IaCTypes         []string `json:"iac_types"`
-	CICDDetected     bool     `json:"ci_cd_detected"`
-	CICDProvider     string   `json:"ci_cd_provider,omitempty"`
-	MonitoringDetected bool   `json:"monitoring_detected"`
-	MonitoringTools  []string `json:"monitoring_tools"`
+	IaCDetected               bool     `json:"iac_detected"`
+	IaCTypes                  []string `json:"iac_types"`
+	CICDDetected              bool     `json:"ci_cd_detected"`
+	CICDProvider              string   `json:"ci_cd_provider,omitempty"`
+	MonitoringDetected        bool     `json:"monitoring_detected"`
+	MonitoringTools           []string `json:"monitoring_tools"`
+	PostAcquisitionInvestment string   `json:"post_acquisition_investment"` // "low" | "medium" | "high"
 }
 
 // Summary contains the overall assessment.

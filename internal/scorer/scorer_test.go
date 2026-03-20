@@ -86,6 +86,18 @@ func TestScoreSecurity_Perfect(t *testing.T) {
 
 func TestScoreSecurity_SecretsFound(t *testing.T) {
 	score := ScoreSecurity(SecurityInput{SecretsCount: 1})
+	// secrets=60, cves=100, licenses=100 → 60*0.35 + 100*0.45 + 100*0.20 = 21+45+20 = 86
+	assert.InDelta(t, 86.0, score, 0.01)
+}
+
+func TestScoreSecurity_TwoSecrets(t *testing.T) {
+	score := ScoreSecurity(SecurityInput{SecretsCount: 2})
+	// secrets=20, cves=100, licenses=100 → 20*0.35 + 100*0.45 + 100*0.20 = 7+45+20 = 72
+	assert.InDelta(t, 72.0, score, 0.01)
+}
+
+func TestScoreSecurity_ThreeSecretsFloorsToZero(t *testing.T) {
+	score := ScoreSecurity(SecurityInput{SecretsCount: 3})
 	// secrets=0, cves=100, licenses=100 → 0*0.35 + 100*0.45 + 100*0.20 = 65
 	assert.InDelta(t, 65.0, score, 0.01)
 }
@@ -206,25 +218,45 @@ func TestScoreActivity_NewProject(t *testing.T) {
 	assert.InDelta(t, 86.17, score, 0.5)
 }
 
-// --- Infrastructure scorer tests ---
+// --- Infrastructure assessment tests (data-only, no score) ---
 
-func TestScoreInfra_AllDetected(t *testing.T) {
-	score := ScoreInfra(InfraInput{
+func TestAssessInfra_AllDetected(t *testing.T) {
+	a := AssessInfra(InfraInput{
 		IaCDetected:        true,
 		CICDDetected:       true,
 		MonitoringDetected: true,
 	})
-	assert.InDelta(t, 100.0, score, 0.01)
+	assert.Equal(t, InvestmentLow, a.InvestmentLevel)
 }
 
-func TestScoreInfra_OnlyCICD(t *testing.T) {
-	score := ScoreInfra(InfraInput{CICDDetected: true})
-	assert.InDelta(t, 60.0, score, 0.01)
+func TestAssessInfra_OnlyCICD(t *testing.T) {
+	a := AssessInfra(InfraInput{CICDDetected: true})
+	assert.Equal(t, InvestmentMedium, a.InvestmentLevel)
 }
 
-func TestScoreInfra_NoneDetected(t *testing.T) {
-	score := ScoreInfra(InfraInput{})
-	assert.InDelta(t, 0.0, score, 0.01)
+func TestAssessInfra_CICDAndMonitoring(t *testing.T) {
+	a := AssessInfra(InfraInput{CICDDetected: true, MonitoringDetected: true})
+	assert.Equal(t, InvestmentLow, a.InvestmentLevel)
+}
+
+func TestAssessInfra_CICDAndIaC(t *testing.T) {
+	a := AssessInfra(InfraInput{CICDDetected: true, IaCDetected: true})
+	assert.Equal(t, InvestmentLow, a.InvestmentLevel)
+}
+
+func TestAssessInfra_NoneDetected(t *testing.T) {
+	a := AssessInfra(InfraInput{})
+	assert.Equal(t, InvestmentHigh, a.InvestmentLevel)
+}
+
+func TestAssessInfra_IaCOnly(t *testing.T) {
+	a := AssessInfra(InfraInput{IaCDetected: true})
+	assert.Equal(t, InvestmentHigh, a.InvestmentLevel)
+}
+
+func TestAssessInfra_MonitoringOnly(t *testing.T) {
+	a := AssessInfra(InfraInput{MonitoringDetected: true})
+	assert.Equal(t, InvestmentHigh, a.InvestmentLevel)
 }
 
 // --- Overall score tests (SC-041) ---
@@ -236,23 +268,21 @@ func TestOverallScore_AllCategories(t *testing.T) {
 		{"handoff_readiness", 100},
 		{"development_activity", 100},
 		{"dependency_health", 100},
-		{"sre_infrastructure", 100},
 	}
 	assert.InDelta(t, 100.0, OverallScore(scores), 0.01)
 }
 
 func TestOverallScore_Weighted(t *testing.T) {
 	scores := []CategoryScore{
-		{"security", 80},          // 0.25
-		{"maintainability", 70},   // 0.20
-		{"handoff_readiness", 60}, // 0.20
+		{"security", 80},             // 0.30
+		{"maintainability", 70},      // 0.22
+		{"handoff_readiness", 60},    // 0.22
 		{"development_activity", 90}, // 0.15
-		{"dependency_health", 50}, // 0.10
-		{"sre_infrastructure", 40}, // 0.10
+		{"dependency_health", 50},    // 0.11
 	}
-	// 80*0.25 + 70*0.20 + 60*0.20 + 90*0.15 + 50*0.10 + 40*0.10
-	// = 20 + 14 + 12 + 13.5 + 5 + 4 = 68.5
-	assert.InDelta(t, 68.5, OverallScore(scores), 0.01)
+	// 80*0.30 + 70*0.22 + 60*0.22 + 90*0.15 + 50*0.11
+	// = 24 + 15.4 + 13.2 + 13.5 + 5.5 = 71.6
+	assert.InDelta(t, 71.6, OverallScore(scores), 0.01)
 }
 
 func TestOverallScore_MissingCategory_Renormalized(t *testing.T) {
@@ -262,7 +292,6 @@ func TestOverallScore_MissingCategory_Renormalized(t *testing.T) {
 		{"maintainability", 100},
 		{"handoff_readiness", 100},
 		{"dependency_health", 100},
-		{"sre_infrastructure", 100},
 	}
 	// All 100, renormalized → 100
 	assert.InDelta(t, 100.0, OverallScore(scores), 0.01)
@@ -271,17 +300,16 @@ func TestOverallScore_MissingCategory_Renormalized(t *testing.T) {
 func TestOverallScore_MissingCategory_NonUniform(t *testing.T) {
 	// Activity missing, different scores → renormalized weights
 	scores := []CategoryScore{
-		{"security", 80},          // 0.25/0.85
-		{"maintainability", 60},   // 0.20/0.85
-		{"handoff_readiness", 70}, // 0.20/0.85
-		{"dependency_health", 50}, // 0.10/0.85
-		{"sre_infrastructure", 40}, // 0.10/0.85
+		{"security", 80},          // 0.30/0.85
+		{"maintainability", 60},   // 0.22/0.85
+		{"handoff_readiness", 70}, // 0.22/0.85
+		{"dependency_health", 50}, // 0.11/0.85
 	}
-	// weighted sum = 80*0.25 + 60*0.20 + 70*0.20 + 50*0.10 + 40*0.10
-	//             = 20 + 12 + 14 + 5 + 4 = 55
+	// weighted sum = 80*0.30 + 60*0.22 + 70*0.22 + 50*0.11
+	//             = 24 + 13.2 + 15.4 + 5.5 = 58.1
 	// total weight = 0.85
-	// renormalized = 55 / 0.85 = 64.706...
-	assert.InDelta(t, 64.71, OverallScore(scores), 0.01)
+	// renormalized = 58.1 / 0.85 = 68.35...
+	assert.InDelta(t, 68.35, OverallScore(scores), 0.01)
 }
 
 func TestOverallScore_Empty(t *testing.T) {
@@ -301,7 +329,6 @@ func TestOverallScore_Clamped(t *testing.T) {
 		{"handoff_readiness", 100},
 		{"development_activity", 100},
 		{"dependency_health", 100},
-		{"sre_infrastructure", 100},
 	}
 	result := OverallScore(scores)
 	assert.LessOrEqual(t, result, 100.0)
@@ -345,6 +372,26 @@ func TestScoreSecurity_AllBad(t *testing.T) {
 		LicenseIssueCount: 10,
 	})
 	assert.InDelta(t, 0.0, score, 0.01)
+}
+
+func TestScoreSecurity_TransitiveCVE_HalfWeight(t *testing.T) {
+	// One critical direct CVE: penalty = 50
+	directScore := ScoreSecurity(SecurityInput{CVECritical: 1})
+	// One critical transitive CVE: penalty = 25 (half weight)
+	transScore := ScoreSecurity(SecurityInput{CVECriticalTrans: 1})
+
+	// Direct: cves = 100-50 = 50, overall = 100*0.35 + 50*0.45 + 100*0.20 = 77.5
+	assert.InDelta(t, 77.5, directScore, 0.01)
+	// Transitive: cves = 100-25 = 75, overall = 100*0.35 + 75*0.45 + 100*0.20 = 88.75
+	assert.InDelta(t, 88.75, transScore, 0.01)
+}
+
+func TestScoreSecurity_MixedDirectAndTransitive(t *testing.T) {
+	// 1 direct critical (penalty 50) + 1 transitive critical (penalty 25)
+	score := ScoreSecurity(SecurityInput{CVECritical: 1, CVECriticalTrans: 1})
+	// cves = clamp(100 - 50 - 25) = 25
+	// 100*0.35 + 25*0.45 + 100*0.20 = 35 + 11.25 + 20 = 66.25
+	assert.InDelta(t, 66.25, score, 0.01)
 }
 
 // --- Additional boundary value tests ---
@@ -437,20 +484,8 @@ func TestOverallScore_SingleCategory(t *testing.T) {
 	assert.InDelta(t, 75.0, OverallScore(scores), 0.01)
 }
 
-func TestScoreInfra_IaCOnly(t *testing.T) {
-	score := ScoreInfra(InfraInput{IaCDetected: true})
-	// 100*0.30 + 0 + 0 = 30
-	assert.InDelta(t, 30.0, score, 0.01)
-}
-
-func TestScoreInfra_MonitoringOnly(t *testing.T) {
-	score := ScoreInfra(InfraInput{MonitoringDetected: true})
-	// 0 + 0 + 100*0.10 = 10
-	assert.InDelta(t, 10.0, score, 0.01)
-}
-
-func TestScoreInfra_IaCAndCICD(t *testing.T) {
-	score := ScoreInfra(InfraInput{IaCDetected: true, CICDDetected: true})
-	// 100*0.30 + 100*0.60 + 0 = 90 → grade A-
-	assert.InDelta(t, 90.0, score, 0.01)
+func TestAssessInfra_IaCAndMonitoring(t *testing.T) {
+	a := AssessInfra(InfraInput{IaCDetected: true, MonitoringDetected: true})
+	// No CI/CD → still high investment
+	assert.Equal(t, InvestmentHigh, a.InvestmentLevel)
 }

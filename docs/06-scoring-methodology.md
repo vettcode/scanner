@@ -8,7 +8,7 @@
 
 ## 1. Overview
 
-VettCode grades codebases across **6 scored categories** (letter grades A through F), **3 data-only categories** (structured data without grades), and produces **1 overall grade** (weighted average of the 6 scored categories).
+VettCode grades codebases across **5 scored categories** (letter grades A through F), **4 data-only categories** (structured data without grades), and produces **1 overall grade** (weighted average of the 5 scored categories).
 
 This document defines:
 - How each metric is collected
@@ -41,7 +41,7 @@ All scored categories use the same 0–100 → letter grade mapping:
 
 **No A+ grade exists.** The highest possible grade is A (93–100). This is intentional — the scale follows standard academic conventions with a hard ceiling. Any component producing an "A+" grade has a bug.
 
-The **overall grade** uses the same mapping applied to the weighted average of all 6 category scores.
+The **overall grade** uses the same mapping applied to the weighted average of all 5 scored category scores.
 
 ---
 
@@ -75,7 +75,7 @@ The **overall grade** uses the same mapping applied to the weighted average of a
 **What it measures:** How exposed the codebase is to known vulnerabilities and credential leaks.
 
 **Metrics collected by scanner:**
-- Hardcoded secrets count (regex + entropy detection)
+- Hardcoded secrets count (confidence-scored: regex + entropy detection with multi-signal scoring)
 - Known CVEs by severity (critical, high, medium, low)
 - License compatibility issues (SPDX detection)
 
@@ -83,11 +83,13 @@ The **overall grade** uses the same mapping applied to the weighted average of a
 
 | Sub-metric | Weight | Formula | Thresholds |
 | --- | --- | --- | --- |
-| Secrets | 35% | `100 if count == 0 else 0` | Binary: any secret → 0 |
+| Secrets | 35% | `max(0, 100 - secrets_found * 40)` | 0 → 100, 1 → 60, 2 → 20, 3+ → 0 |
 | CVEs | 45% | `max(0, 100 - critical*50 - high*25 - medium*10 - low*2)` | 1 critical → 50, 2 critical → 0 |
 | License issues | 20% | `max(0, 100 - issues * 25)` | 0 → 100, 2 → 50, 4 → 0 |
 
-**Why these thresholds:** Secrets scoring is binary because even one leaked credential is a critical finding. CVE severity weights (critical=50, high=25, medium=10, low=2) are intentionally aggressive — even a single critical CVE halves the sub-score, reflecting the direct liability these create in M&A. CVEs at 45% weight captures the actual security consequence of outdated dependencies — unmaintained dependency percentage is scored separately under Dependency Health to avoid double-counting. License issues are weighted at 20% because license risk in M&A carries legal exposure for buyers.
+**Secrets detection — confidence-based scoring:** The scanner uses a confidence scoring system (0–100) for each potential secret finding. Each candidate starts with a base confidence determined by pattern specificity (e.g., AWS key format = 85, generic `password=` assignment = 50, high-entropy string = 40), then multiple signals adjust the score up or down based on file path context, line content, and value characteristics. Only findings with confidence ≥ 50 are counted as `secrets_found`; findings scoring 30–49 are pattern matches in test/docs/example files that scored below the confidence threshold — tracked as `suppressed_secrets` for transparency but not counted toward the grade. See Section 5.3 of the scanner design doc for signal details.
+
+**Why these thresholds:** Secrets scoring uses a graduated penalty (40 points per secret) rather than binary. The confidence-based detection system already filters false positives, so counted secrets are real findings. A single secret (often a rotatable API key or `.env` leak) should reduce the score significantly but not zero it out — it's a serious but addressable finding. Two or more secrets indicate a pattern of poor credential hygiene and warrant near-zero scoring. Three or more secrets floor the sub-score to 0. CVE severity weights (critical=50, high=25, medium=10, low=2) are intentionally aggressive — even a single critical CVE halves the sub-score, reflecting the direct liability these create in M&A. CVEs at 45% weight captures the actual security consequence of outdated dependencies — unmaintained dependency percentage is scored separately under Dependency Health to avoid double-counting. License issues are weighted at 20% because license risk in M&A carries legal exposure for buyers.
 
 ---
 
@@ -163,57 +165,32 @@ The **overall grade** uses the same mapping applied to the weighted average of a
 
 ---
 
-### 3.6 SRE & Infrastructure
-
-**What it measures:** How mature the project's operational practices are.
-
-**Metrics collected by scanner:**
-- Infrastructure as Code detected (Docker, Terraform, K8s, etc.)
-- CI/CD pipeline detected (GitHub Actions, GitLab CI, etc.)
-- Monitoring detected (Datadog, Prometheus, Sentry, etc.)
-
-**Score calculation (0–100):**
-
-| Sub-metric | Weight | Formula | Thresholds |
-| --- | --- | --- | --- |
-| IaC | 30% | `100 if detected else 0` | Binary |
-| CI/CD | 60% | `100 if detected else 0` | Binary |
-| Monitoring | 10% | `100 if detected else 0` | Binary |
-
-**Why these weights:** CI/CD is weighted highest (60%) because it directly affects deployment safety and velocity post-acquisition — a project without CI/CD requires significant operational investment before a buyer can safely ship changes. IaC is next (30%) because it determines infrastructure reproducibility. Monitoring is weighted lowest (10%) because it's the easiest to add post-acquisition and is often configured at deployment time rather than embedded in source code.
-
-**Why binary scoring:** These are foundational operational practices. Having Terraform is fundamentally different from not having Terraform — there's no meaningful gradient. The presence check is based on file/config detection (Dockerfile, .github/workflows, terraform files, monitoring SDK imports).
-
----
-
 ## 4. Overall Grade
 
-The overall grade is a weighted average of all 6 scored category scores, mapped to a letter grade using the same scale (Section 2).
+The overall grade is a weighted average of all 5 scored category scores, mapped to a letter grade using the same scale (Section 2). SRE & Infrastructure is a data-only category (Section 5.4) and does not contribute to the overall grade.
 
 | Category | Weight | Rationale |
 | --- | --- | --- |
-| Security Posture | 25% | Most critical for M&A — vulnerabilities are direct liability |
-| Code Maintainability | 20% | Determines ongoing development cost post-acquisition |
-| Handoff Readiness | 20% | Directly affects transition timeline and risk |
+| Security Posture | 30% | Most critical for M&A — vulnerabilities are direct liability |
+| Code Maintainability | 22% | Determines ongoing development cost post-acquisition |
+| Handoff Readiness | 22% | Directly affects transition timeline and risk |
 | Development Activity | 15% | Signals whether the product is alive and maintained |
-| Dependency Health | 10% | Reflects upgrade burden and supply chain risk |
-| SRE & Infrastructure | 10% | Operational maturity — easiest category to improve post-acquisition |
+| Dependency Health | 11% | Reflects upgrade burden and supply chain risk |
 
 **Formula:**
 
 ```
 overall_score = (
-    security_score * 0.25 +
-    maintainability_score * 0.20 +
-    handoff_score * 0.20 +
+    security_score * 0.30 +
+    maintainability_score * 0.22 +
+    handoff_score * 0.22 +
     activity_score * 0.15 +
-    dependency_score * 0.10 +
-    infra_score * 0.10
+    dependency_score * 0.11
 )
 overall_grade = grade_from_score(overall_score)
 ```
 
-**Why these weights:** Security is weighted highest because vulnerabilities create direct legal and financial liability for acquirers. Maintainability and Handoff Readiness are equal because they represent the two biggest post-acquisition cost drivers (development velocity and knowledge transfer). Development Activity is meaningful but less actionable — a buyer can't change the past. Dependency Health and SRE are weighted lowest because they're the most improvable post-acquisition.
+**Why these weights:** Security is weighted highest because vulnerabilities create direct legal and financial liability for acquirers. Maintainability and Handoff Readiness are equal because they represent the two biggest post-acquisition cost drivers (development velocity and knowledge transfer). Development Activity is meaningful but less actionable — a buyer can't change the past. Dependency Health is weighted lowest because it's the most improvable post-acquisition. SRE & Infrastructure was moved to data-only (Section 5.4) because a letter grade misrepresents operational maturity for indie SaaS — a project deployed on Heroku with GitHub Actions CI is healthy for the $200K–$500K deal segment, but would score poorly under binary infrastructure grading.
 
 ---
 
@@ -239,6 +216,22 @@ These categories provide structured data without letter grades. They contain val
 
 **Why not scored:** Codebase size is contextual. 42,000 LOC could be lean for an enterprise platform or bloated for a landing page builder. Profile data helps buyers calibrate expectations but doesn't indicate quality.
 
+### 5.4 SRE & Infrastructure
+
+**What it shows:** Whether the codebase includes Infrastructure as Code (Docker, Terraform, K8s), CI/CD pipelines (GitHub Actions, GitLab CI), and monitoring (Datadog, Prometheus, Sentry). Also provides a **post-acquisition investment level** (low / medium / high) indicating how much operational work a buyer should budget.
+
+**Investment level logic:**
+
+| Detected capabilities | Investment level | Meaning |
+| --- | --- | --- |
+| CI/CD + at least one of (IaC, Monitoring) | Low | Operationally solid — buyer can deploy and observe from day one |
+| CI/CD only | Medium | Deployment is automated; buyer should add monitoring and possibly IaC |
+| No CI/CD (regardless of IaC/Monitoring) | High | Full deployment pipeline setup required |
+
+**Why not scored:** For the indie SaaS segment ($200K–$500K acquisitions on Flippa/MicroAcquire), CI/CD plus a PaaS deploy (Heroku, Railway, Vercel) is a healthy and complete operational posture. Binary infrastructure grading penalized projects that don't need Terraform or Datadog — producing D- and F grades that scared off buyers despite the setup being perfectly appropriate for the deal size. The detection data is still valuable for due diligence; it's presented as a qualitative assessment ("post-acquisition investment: low") rather than a letter grade.
+
+**Note:** The **"No CI/CD Detected"** red flag (Section 6) still fires independently — the absence of CI/CD is a meaningful finding regardless of whether SRE is scored.
+
 ---
 
 ## 6. Red Flags
@@ -247,7 +240,7 @@ Red flags are critical findings surfaced prominently at the top of every report,
 
 | Flag | Trigger | Severity |
 | --- | --- | --- |
-| Secrets Detected | Any hardcoded secrets (count > 0) | Critical |
+| Secrets Detected | Any hardcoded secrets with confidence ≥ 50 (count > 0) | Critical |
 | Critical/High CVEs | Any critical or high severity CVEs | Critical |
 | No Tests Found | 0% estimated test coverage | High |
 | Stale Repository | Last commit > 6 months ago | High |
@@ -266,7 +259,7 @@ When a scan covers multiple repositories, metrics are aggregated before scoring:
 
 | Metric type | Rule |
 | --- | --- |
-| Counts (LOC, CVEs, secrets, deps) | Sum across repos |
+| Counts (LOC, CVEs, secrets, suppressed secrets, deps) | Sum across repos |
 | Percentages (duplication, coverage, unmaintained) | LOC-weighted average |
 | Grades | Computed from aggregated metrics (NOT averaged from per-repo grades) |
 | Complexity (avg) | LOC-weighted average |
@@ -296,7 +289,6 @@ When the scanner cannot compute a category score due to missing input data, that
 | Code Maintainability | Tier 1 languages account for less than 20% of total LOC | No — but report shows "No supported languages for complexity analysis" | Complexity analysis only runs on Tier 1 files. When they're a small fraction of the codebase, the metrics are unrepresentative. A Rust repo with 2% Python helper scripts should not get a Maintainability grade based only on those scripts. |
 | Handoff Readiness | Tier 1 languages account for less than 20% of total LOC | No — but report shows "No supported languages for test coverage analysis" | Test coverage estimation only counts Tier 1 test/source files. When 98% of the code is Tier 2, showing 0% coverage and an F grade is misleading — the repo may have extensive tests the scanner can't analyze. Doc density, env vars, and README are still shown as raw data. |
 | Security Posture | N/A not possible — secrets detection and license scanning work on all file types regardless of language support. CVEs require dependency files; if none exist, CVE sub-metric scores 100 (no known vulnerabilities). | — | Security always produces a score. |
-| SRE & Infrastructure | N/A not possible — file detection (Dockerfile, CI configs, monitoring) works on all repos. | — | SRE always produces a score. |
 
 ### Overall grade with N/A categories
 
@@ -306,42 +298,42 @@ When one or more categories are N/A, the overall grade is computed from the rema
 
 ```
 remaining_weights = {
-    security: 0.25, maintainability: 0.20, handoff: 0.20,
-    dependency: 0.10, infra: 0.10
+    security: 0.30, maintainability: 0.22, handoff: 0.22,
+    dependency: 0.11
 }
 # Sum = 0.85 → renormalize by dividing each by 0.85
 renormalized = {
-    security: 0.294, maintainability: 0.235, handoff: 0.235,
-    dependency: 0.118, infra: 0.118
+    security: 0.353, maintainability: 0.259, handoff: 0.259,
+    dependency: 0.129
 }
 overall_score = sum(category_score * renormalized_weight for each scored category)
 ```
 
-**Example:** If both Development Activity (15%) and Dependency Health (10%) are N/A:
+**Example:** If both Development Activity (15%) and Dependency Health (11%) are N/A:
 
 ```
 remaining_weights = {
-    security: 0.25, maintainability: 0.20, handoff: 0.20, infra: 0.10
+    security: 0.30, maintainability: 0.22, handoff: 0.22
 }
-# Sum = 0.75 → renormalize by dividing each by 0.75
+# Sum = 0.74 → renormalize by dividing each by 0.74
 ```
 
-**Example:** Tier 2-only repo (e.g., Rust) — Maintainability (20%), Handoff (20%), Dependency Health (10%), and Development Activity (15%) are all N/A:
+**Example:** Tier 2-only repo (e.g., Rust) — Maintainability (22%), Handoff (22%), Dependency Health (11%), and Development Activity (15%) are all N/A:
 
 ```
 remaining_weights = {
-    security: 0.25, infra: 0.10
+    security: 0.30
 }
-# Sum = 0.35 → renormalize by dividing each by 0.35
+# Sum = 0.30 → renormalize by dividing by 0.30
 renormalized = {
-    security: 0.714, infra: 0.286
+    security: 1.00
 }
 ```
 
 ### Display requirements
 
 - Reports must show which categories are N/A and why (e.g., "Development Activity: N/A — no git history detected")
-- The overall grade label must indicate reduced coverage: **"Overall Grade (4 of 6 categories)"**
+- The overall grade label must indicate reduced coverage: **"Overall Grade (3 of 5 categories)"**
 - N/A categories appear in the category list as greyed-out cards with an explanation, not hidden
 - Any N/A-triggered red flags (e.g., "No Git History") appear in the red flags section as normal
 
@@ -371,11 +363,13 @@ Displayed on every report:
 
 3. **AI detection is presence-based, not quality-based.** The static scanner detects whether AI capabilities exist (LLM API calls, vector DB imports) but cannot assess their quality, defensibility, or business value. Deep Scan provides this analysis.
 
-4. **Binary infrastructure checks.** SRE & Infrastructure scoring detects the presence of tools (Docker, CI/CD, monitoring) but does not evaluate their configuration quality. A misconfigured Terraform setup scores the same as a well-architected one.
+4. **Infrastructure detection is presence-based.** SRE & Infrastructure (data-only) detects the presence of tools (Docker, CI/CD, monitoring) but does not evaluate their configuration quality. A misconfigured Terraform setup is reported the same as a well-architected one. The post-acquisition investment level is derived from which tools are present, not how well they are configured.
 
 5. **Snapshot in time.** A VettCode report reflects the codebase at the moment of scanning. Code quality can change rapidly. Report freshness indicators help buyers assess relevance (< 30 days: Recent, 30–90 days: Aging, > 90 days: Stale).
 
-6. **Language support.** V1 supports full analysis (Tier 1) for JavaScript/TypeScript, Python, Go, PHP, Ruby, and Java. Other languages (Rust, C/C++, Dart, Kotlin, etc.) are detected and LOC-counted but not analyzed for complexity, duplication, or test coverage. When Tier 1 languages account for less than 20% of total LOC, Maintainability and Handoff Readiness are shown as N/A rather than producing misleading grades from unrepresentative data.
+6. **Language support.** V1 supports full analysis (Tier 1) for JavaScript/TypeScript, Python, Go, PHP, Ruby, and Java. Tier 2 languages (C, C++, C#, Rust, Swift, Kotlin, Scala, R, Lua, Perl, Elixir, Erlang, Dart) are detected and LOC-counted but not analyzed for complexity, duplication, or test coverage. When Tier 1 languages account for less than 20% of total LOC, Maintainability and Handoff Readiness are shown as N/A rather than producing misleading grades from unrepresentative data.
+
+7. **Shallow git clones.** When the scanner detects a shallow clone (`--depth 1`), Development Activity metrics may be inaccurate. The scanner warns users to run `git fetch --unshallow` and re-scan.
 
 ---
 
@@ -391,7 +385,7 @@ This document is the **single source of truth** for all static scan scoring logi
 | --- | --- | --- |
 | **Scanner (01)** | Computes scores and grades locally during scan | Scanner Section 4.4 references this doc |
 | **Backend (02)** | Re-computes scores server-side for report generation | Backend Section 4.5 and 5.1 reference this doc |
-| **Frontend (04)** | Displays 6 scored category grades + 3 data-only categories + overall grade | Frontend FR-07 |
+| **Frontend (04)** | Displays 5 scored category grades + 4 data-only categories + overall grade | Frontend FR-07 |
 | **Technical Overview (00b)** | Summary of scoring approach; defers to this doc for details | 00b Section 7 |
 
 ---
@@ -406,14 +400,14 @@ Doc 06 is a methodology reference — it defines *what* to compute, not a deploy
 
 | Scoring concern | Scanner (01) | Backend (02) | Frontend (04) |
 | --- | --- | --- | --- |
-| Per-metric score functions (all 6 categories) | SC-040 (3h) | T3.1 (1 day) | — |
+| Per-metric score functions (5 scored + 1 data-only) | SC-040 (3h) | T3.1 (1 day) | — |
 | Grade conversion (score → letter grade) | SC-041 (2h) | T3.1 (1 day) | FE-006 (`grade-badge`) |
 | Overall grade (weighted average) | SC-041 (2h) | T3.1 (1 day) | FE-021 (overall grade badge) |
 | Red flag evaluation | SC-042 (2h) | T3.1 (1 day) | FE-020 (red flags section) |
 | Multi-repo aggregation | SC-043 (4h) | T3.1 (1 day) | — |
 | Report assembly (risks, strengths, explanations) | — | T3.3 (1 day) | FE-018–025 (report viewer) |
-| Scored category display (6 cards) | — | — | FE-021 (6h) |
-| Data-only category display (3 sections) | — | — | FE-021 (included) |
+| Scored category display (5 cards + SRE data card) | — | — | FE-021 (6h) |
+| Data-only category display (4 sections) | — | — | FE-021 (included) |
 | Scorer unit tests | SC-062 (2h) | T3.1 AC | — |
 
 **Consistency rule:** Scanner scores are advisory — the backend re-computes all scores server-side from raw metrics. Both must produce identical results for the same inputs. SC-062 and T3.1 unit tests use shared fixture data (SC-060) to verify this.

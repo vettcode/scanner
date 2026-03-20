@@ -392,14 +392,14 @@ func TestCLI_CIModeFailGrade(t *testing.T) {
 }
 
 func TestCLI_CIModeFailThresholdB(t *testing.T) {
-	// Use neglected project which should get a low grade
+	// Use neglected project which gets B with current scoring — threshold A- should fail
 	fixture := testdata.FixturePath(testdata.NeglectedProject)
 	tmpOut := filepath.Join(t.TempDir(), "scan.json")
-	_, err := execCLI(t, "scan", fixture, "--offline", "--ci", "--ci-threshold", "B", "--format", "json", "-q", "-o", tmpOut)
-	require.Error(t, err, "CI mode should fail when threshold is B and grade is lower")
+	_, err := execCLI(t, "scan", fixture, "--offline", "--ci", "--ci-threshold", "A-", "--format", "json", "-q", "-o", tmpOut)
+	require.Error(t, err, "CI mode should fail when threshold is A- and grade is B")
 	var ciErr *CIGateError
 	assert.ErrorAs(t, err, &ciErr)
-	assert.Contains(t, ciErr.Error(), "below threshold B")
+	assert.Contains(t, ciErr.Error(), "below threshold A-")
 }
 
 func TestCLI_CIModeInvalidThreshold(t *testing.T) {

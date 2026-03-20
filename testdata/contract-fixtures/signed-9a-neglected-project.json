@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "scan_id": "contract-test-neglected-project",
-  "timestamp": "2026-03-19T04:22:41Z",
+  "timestamp": "2026-03-20T00:00:43Z",
   "scanner_version": "0.1.0-test",
   "repositories": [
     {
@@ -64,6 +64,7 @@
     "security": {
       "grade": "A",
       "secrets_found": 0,
+      "suppressed_secrets": 0,
       "cves": [],
       "cve_summary": {
         "critical": 0,
@@ -107,22 +108,21 @@
       "proprietary_dataset": false
     },
     "infrastructure": {
-      "grade": "F",
       "iac_detected": false,
       "iac_types": [],
       "ci_cd_detected": false,
       "monitoring_detected": false,
-      "monitoring_tools": []
+      "monitoring_tools": [],
+      "post_acquisition_investment": "high"
     }
   },
   "summary": {
     "scored_categories": [
       "maintainability",
       "security",
-      "handoff_readiness",
-      "sre_infrastructure"
+      "handoff_readiness"
     ],
-    "overall_grade": "D+",
+    "overall_grade": "C+",
     "top_risks": [],
     "top_strengths": []
   },
@@ -132,9 +132,9 @@
   },
   "warnings": [],
   "integrity": {
-    "scan_checksum": "b15ed18ef8c5772d045d0a2f74fc82fd909a63792282a2a46ea13d7362d1d6cc",
+    "scan_checksum": "3c3cbe254a75918ac69babf415be1d7e0449b1af5ab1913e1df12f763fa1436d",
     "scanner_public_key_id": "vettcode-scanner-key-2026-03",
-    "scanner_signature": "IvEYPS8y526o3z1GD2oUb11uSTtaWv6bZXTvhPqQb3tIYk37Em6AeqSFbDpchIFh2TeiOTav82WjayHkXeHxCw==",
+    "scanner_signature": "duFzqw5+ragQiZbxq2GxDuObumTmOVn3wk0i45jqVNjd2eLt5VbD19pwRnkj0izALo7ydrUn+H/arx02+cPUCg==",
     "cosign_nonce": null,
     "platform_cosignature": null,
     "platform_public_key_id": null,

@@ -26,6 +26,9 @@ type DetectionResult struct {
 	DetectedLanguages []string
 	// Tier1Languages is a sorted list of detected Tier 1 language names.
 	Tier1Languages []string
+	// Tier2CodeLanguages is a sorted list of detected Tier 2 code languages
+	// (e.g. C, C++, Rust) — excludes config/markup like HTML, CSS, YAML.
+	Tier2CodeLanguages []string
 	// TotalLOC is the total lines of code across all languages.
 	TotalLOC int
 }
@@ -76,6 +79,7 @@ func AggregateResults(files map[string]int) *DetectionResult {
 	}
 
 	tier1Set := make(map[string]bool)
+	tier2CodeSet := make(map[string]bool)
 	allLangs := make(map[string]bool)
 
 	for lang, loc := range files {
@@ -85,6 +89,8 @@ func AggregateResults(files map[string]int) *DetectionResult {
 		if IsTier1(lang) {
 			tier1Set[lang] = true
 			result.HasTier1 = true
+		} else if IsTier2Code(lang) {
+			tier2CodeSet[lang] = true
 		}
 	}
 
@@ -98,6 +104,11 @@ func AggregateResults(files map[string]int) *DetectionResult {
 	}
 	sort.Strings(result.Tier1Languages)
 
+	for lang := range tier2CodeSet {
+		result.Tier2CodeLanguages = append(result.Tier2CodeLanguages, lang)
+	}
+	sort.Strings(result.Tier2CodeLanguages)
+
 	return result
 }
 
@@ -110,6 +121,11 @@ func isTestFile(path string, lang string) bool {
 	switch lang {
 	case "Go":
 		return strings.HasSuffix(base, "_test.go")
+	case "C", "C++":
+		baseLower := strings.ToLower(base)
+		if strings.HasPrefix(baseLower, "test") || strings.Contains(baseLower, "_test") || strings.Contains(baseLower, "-test") {
+			return true
+		}
 	case "JavaScript", "TypeScript":
 		if strings.HasSuffix(base, ".test.js") || strings.HasSuffix(base, ".test.ts") ||
 			strings.HasSuffix(base, ".test.jsx") || strings.HasSuffix(base, ".test.tsx") ||
@@ -162,6 +178,13 @@ func isTestFile(path string, lang string) bool {
 			if p == "tests" {
 				return true
 			}
+		}
+	}
+
+	// Generic fallback: any file under a test/tests directory is a test file
+	for _, p := range parts {
+		if p == "test" || p == "tests" {
+			return true
 		}
 	}
 	return false

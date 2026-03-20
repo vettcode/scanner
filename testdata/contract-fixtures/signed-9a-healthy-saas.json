@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "scan_id": "contract-test-healthy-saas",
-  "timestamp": "2026-03-19T04:22:41Z",
+  "timestamp": "2026-03-20T00:00:43Z",
   "scanner_version": "0.1.0-test",
   "repositories": [
     {
@@ -65,6 +65,7 @@
     "security": {
       "grade": "A",
       "secrets_found": 0,
+      "suppressed_secrets": 0,
       "cves": [],
       "cve_summary": {
         "critical": 0,
@@ -106,7 +107,6 @@
       "proprietary_dataset": false
     },
     "infrastructure": {
-      "grade": "A-",
       "iac_detected": true,
       "iac_types": [
         "Docker"
@@ -114,15 +114,15 @@
       "ci_cd_detected": true,
       "ci_cd_provider": "GitHub Actions",
       "monitoring_detected": false,
-      "monitoring_tools": []
+      "monitoring_tools": [],
+      "post_acquisition_investment": "low"
     }
   },
   "summary": {
     "scored_categories": [
       "maintainability",
       "security",
-      "handoff_readiness",
-      "sre_infrastructure"
+      "handoff_readiness"
     ],
     "overall_grade": "A",
     "top_risks": [],
@@ -134,9 +134,9 @@
   },
   "warnings": [],
   "integrity": {
-    "scan_checksum": "cd92b485a49b14a1d4a3724f9797cde132a7d39b276da06ad43353d570a1197c",
+    "scan_checksum": "ff8c0f53f1727848b70f0f2de0947fa9e07959898563cd76fd61c4e7cd2cc737",
     "scanner_public_key_id": "vettcode-scanner-key-2026-03",
-    "scanner_signature": "qyV8UUe2PDbnENRj4s9cSRS2mqenkVTYb2LxFzYjmjpK1guNDfw7ngA3Al3Iu4JlTTdSL7FKdd5Pqfsycy5/Dg==",
+    "scanner_signature": "ncr9eGWhVDAQZHiImTZ/mW/Iu5JMNqhKUD/3A8ch8fSiMtPm6THKhS5Qf40+eC+wvjvlOEX8vBMp2PTDQxxxBw==",
     "cosign_nonce": null,
     "platform_cosignature": null,
     "platform_public_key_id": null,

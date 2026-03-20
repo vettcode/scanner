@@ -23,6 +23,8 @@ var DefaultExcludedDirs = map[string]bool{
 	"coverage":        true, // test coverage reports (Jest, Istanbul, etc.)
 	".nyc_output":     true, // Istanbul/nyc intermediate coverage data
 	"storybook-static": true, // Storybook build output
+	"deps":             true, // vendored dependencies (common in C/C++ projects like Redis)
+	".yarn":            true, // Yarn PnP releases / cache (bundled JS binaries)
 }
 
 // AuxiliaryDirPatterns are directory names that contain non-production code
@@ -41,6 +43,7 @@ var AuxiliaryDirPatterns = map[string]bool{
 	"samples":   true,
 	"demo":      true,
 	"demos":     true,
+	"devenv":    true, // local dev environment configs (Docker, dummy credentials)
 }
 
 // DefaultExcludedExtensions are file extensions always excluded.

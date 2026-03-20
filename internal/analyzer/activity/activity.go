@@ -21,6 +21,7 @@ type Result struct {
 	TotalCommits       int       // total commits in last 12 months
 	HeadSHA            string    // HEAD commit SHA
 	HasGit             bool
+	IsShallowClone     bool
 }
 
 // Analyze runs git-based analysis on a repository root.
@@ -38,6 +39,11 @@ func Analyze(root string) *Result {
 		return r
 	}
 	r.HasGit = true
+
+	// Detect shallow clone
+	if shallow, err := gitCmd(root, "rev-parse", "--is-shallow-repository"); err == nil {
+		r.IsShallowClone = strings.TrimSpace(shallow) == "true"
+	}
 
 	// HEAD SHA
 	if sha, err := gitCmd(root, "rev-parse", "HEAD"); err == nil {

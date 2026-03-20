@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | JSON fields | `snake_case` | `scan_id`, `total_loc`, `cve_summary` |
 | Percentage fields | `*_pct` suffix | `duplication_pct`, `unmaintained_pct` |
-| Count fields | `*_count` suffix or bare noun | `hotspot_count`, `secrets_found` |
+| Count fields | `*_count` suffix or bare noun | `hotspot_count`, `secrets_found`, `suppressed_secrets` |
 | Boolean fields | `has_*` prefix or bare adjective | `has_readme`, `cosigned` |
 | Monetary values | Cents (integer), `*_cents` suffix for deal values | `price_cents: 29900` = $299.00 |
 | Timestamps | ISO-8601 UTC | `2026-03-17T10:30:00Z` |

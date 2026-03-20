@@ -60,13 +60,13 @@ type CategoryWeight struct {
 }
 
 // DefaultWeights are the standard category weights per the scoring methodology.
+// SRE & Infrastructure is data-only (not scored) — 5 scored categories.
 var DefaultWeights = []CategoryWeight{
-	{"security", 0.25},
-	{"maintainability", 0.20},
-	{"handoff_readiness", 0.20},
+	{"security", 0.30},
+	{"maintainability", 0.22},
+	{"handoff_readiness", 0.22},
 	{"development_activity", 0.15},
-	{"dependency_health", 0.10},
-	{"sre_infrastructure", 0.10},
+	{"dependency_health", 0.11},
 }
 
 // CategoryScore holds a scored category's name and numeric score.

@@ -15,7 +15,6 @@ func fullTestResult() *models.ScanResult {
 	gradeBM := models.GradeBM
 	gradeA := models.GradeA
 	gradeC := models.GradeC
-	gradeCP := models.GradeCP
 	gradeBP := models.GradeBP
 
 	return &models.ScanResult{
@@ -93,12 +92,12 @@ func fullTestResult() *models.ScanResult {
 				RAGPipeline: true,
 			},
 			Infrastructure: models.InfrastructureDetection{
-				Grade:              &gradeCP,
-				IaCDetected:        true,
-				IaCTypes:           []string{"Terraform", "Docker"},
-				CICDDetected:       true,
-				CICDProvider:       "GitHub Actions",
-				MonitoringDetected: false,
+				IaCDetected:               true,
+				IaCTypes:                  []string{"Terraform", "Docker"},
+				CICDDetected:              true,
+				CICDProvider:              "GitHub Actions",
+				MonitoringDetected:        false,
+				PostAcquisitionInvestment: "medium",
 			},
 		},
 		Summary: models.Summary{
@@ -328,7 +327,7 @@ func TestTerminalFormatter_InlineTips(t *testing.T) {
 		},
 		Detection: models.Detection{
 			Infrastructure: models.InfrastructureDetection{
-				Grade: &gradeD,
+				PostAcquisitionInvestment: "high",
 			},
 		},
 		Summary: models.Summary{},
@@ -468,12 +467,12 @@ func TestTerminalFormatter_NewInlineTips(t *testing.T) {
 		},
 		Detection: models.Detection{
 			Infrastructure: models.InfrastructureDetection{
-				Grade:              &gradeD,
-				IaCDetected:        true,
-				IaCTypes:           []string{"Docker"},
-				CICDDetected:       true,
-				CICDProvider:       "GitHub Actions",
-				MonitoringDetected: false,
+				IaCDetected:               true,
+				IaCTypes:                  []string{"Docker"},
+				CICDDetected:              true,
+				CICDProvider:              "GitHub Actions",
+				MonitoringDetected:        false,
+				PostAcquisitionInvestment: "medium",
 			},
 		},
 		Summary: models.Summary{},

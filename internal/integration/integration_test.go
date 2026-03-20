@@ -155,13 +155,13 @@ func TestMultiLanguageScan_HealthySaas(t *testing.T) {
 	})
 	assert.Greater(t, secScore, 50.0, "healthy-saas security should be decent")
 
-	// Scoring: infrastructure
-	infraScore := scorer.ScoreInfra(scorer.InfraInput{
+	// Infrastructure: data-only assessment (no numeric score)
+	infraAssessment := scorer.AssessInfra(scorer.InfraInput{
 		IaCDetected:        infraResult.HasIaC,
 		CICDDetected:       infraResult.HasCICD,
 		MonitoringDetected: infraResult.HasMonitoring,
 	})
-	assert.Greater(t, infraScore, 0.0, "should have some infra score")
+	assert.NotEmpty(t, infraAssessment.InvestmentLevel, "should have investment level")
 }
 
 // TestMultiLanguageScan_JavaEnterprise verifies multi-language (Java + Go) analysis.
@@ -460,11 +460,11 @@ func TestJSONOutputValidation(t *testing.T) {
 				LLMProvider: "openai",
 			},
 			Infrastructure: models.InfrastructureDetection{
-				Grade:       &gradeA,
-				IaCDetected: true,
-				IaCTypes:    []string{"terraform"},
-				CICDDetected: true,
-				CICDProvider: "github-actions",
+				IaCDetected:               true,
+				IaCTypes:                  []string{"terraform"},
+				CICDDetected:              true,
+				CICDProvider:              "github-actions",
+				PostAcquisitionInvestment: "low",
 			},
 		},
 		Summary: models.Summary{

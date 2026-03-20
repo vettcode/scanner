@@ -117,6 +117,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		allLicenseIssues    []models.LicenseIssue
 		allHotspots         []models.HotspotFile
 		allSecretFindings   []models.SecretFinding
+		totalSuppressedSecrets int
 		allFuncComplexities []int // for global P90 computation
 		globalTechStack     *techstack.Result
 		globalAIDetect      *aidetect.Result
@@ -190,12 +191,14 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 		// Secrets detection
 		secretsResult := secrets.Scan(wr.Files)
+		totalSuppressedSecrets += secretsResult.SuppressedCount
 		for _, f := range secretsResult.Findings {
 			allSecretFindings = append(allSecretFindings, models.SecretFinding{
-				Path:     f.RelPath,
-				Line:     f.Line,
-				Name:     f.Name,
-				Category: f.Category,
+				Path:       f.RelPath,
+				Line:       f.Line,
+				Name:       f.Name,
+				Category:   f.Category,
+				Confidence: f.Confidence,
 			})
 		}
 
@@ -230,7 +233,36 @@ func runScan(cmd *cobra.Command, args []string) error {
 				CurrentVersion: v.Version,
 				FixedIn:        v.FixedVersion,
 				Repo:           repo.Name,
+				Direct:         v.Direct,
 			})
+		}
+		// Split CVE counts into direct vs transitive for scoring
+		var directCritical, directHigh, directMedium, directLow int
+		var transCritical, transHigh, transMedium, transLow int
+		for _, v := range cveResult.Vulnerabilities {
+			if v.Direct {
+				switch v.Severity {
+				case "critical":
+					directCritical++
+				case "high":
+					directHigh++
+				case "medium":
+					directMedium++
+				case "low":
+					directLow++
+				}
+			} else {
+				switch v.Severity {
+				case "critical":
+					transCritical++
+				case "high":
+					transHigh++
+				case "medium":
+					transMedium++
+				case "low":
+					transLow++
+				}
+			}
 		}
 		cveSummary.Critical += cveResult.Summary.Critical
 		cveSummary.High += cveResult.Summary.High
@@ -283,10 +315,14 @@ func runScan(cmd *cobra.Command, args []string) error {
 			DuplicationPct:     dupResult.DuplicationPct,
 			PctFilesOver500LOC: fsResult.PctOver500LOC,
 			SecretsCount:       secretsResult.SecretsCount,
-			CVECritical:        cveResult.Summary.Critical,
-			CVEHigh:            cveResult.Summary.High,
-			CVEMedium:          cveResult.Summary.Medium,
-			CVELow:             cveResult.Summary.Low,
+			CVECritical:        directCritical,
+			CVEHigh:            directHigh,
+			CVEMedium:          directMedium,
+			CVELow:             directLow,
+			CVECriticalTrans:   transCritical,
+			CVEHighTrans:       transHigh,
+			CVEMediumTrans:     transMedium,
+			CVELowTrans:        transLow,
 			LicenseIssueCount:  licenseResult.IssueCount,
 			EstTestCoveragePct: handoffResult.EstTestCoveragePct,
 			EnvVarCount:        handoffResult.EnvVarCount,
@@ -384,6 +420,10 @@ func runScan(cmd *cobra.Command, args []string) error {
 		CVEHigh:           agg.CVEHigh,
 		CVEMedium:         agg.CVEMedium,
 		CVELow:            agg.CVELow,
+		CVECriticalTrans:  agg.CVECriticalTrans,
+		CVEHighTrans:      agg.CVEHighTrans,
+		CVEMediumTrans:    agg.CVEMediumTrans,
+		CVELowTrans:       agg.CVELowTrans,
 		LicenseIssueCount: agg.LicenseIssueCount,
 	})
 	secGrade := scorer.ScoreToGrade(secScore)
@@ -508,15 +548,12 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Infrastructure score
-	infraScore := scorer.ScoreInfra(scorer.InfraInput{
+	// Infrastructure assessment (data-only, not scored)
+	infraAssessment := scorer.AssessInfra(scorer.InfraInput{
 		IaCDetected:        agg.IaCDetected,
 		CICDDetected:       agg.CICDDetected,
 		MonitoringDetected: agg.MonitoringDetected,
 	})
-	infraGrade := scorer.ScoreToGrade(infraScore)
-	categoryScores = append(categoryScores, scorer.CategoryScore{Name: "sre_infrastructure", Score: infraScore})
-	scoredCategories = append(scoredCategories, "sre_infrastructure")
 
 	// Overall score
 	overall := scorer.OverallScore(categoryScores)
@@ -573,19 +610,19 @@ func runScan(cmd *cobra.Command, args []string) error {
 			cicdProvider = globalInfra.CICDProviders[0]
 		}
 		detection.Infrastructure = models.InfrastructureDetection{
-			Grade:              &infraGrade,
-			IaCDetected:        globalInfra.HasIaC,
-			IaCTypes:           globalInfra.IaCTools,
-			CICDDetected:       globalInfra.HasCICD,
-			CICDProvider:       cicdProvider,
-			MonitoringDetected: globalInfra.HasMonitoring,
-			MonitoringTools:    globalInfra.MonitorTools,
+			IaCDetected:               globalInfra.HasIaC,
+			IaCTypes:                  globalInfra.IaCTools,
+			CICDDetected:              globalInfra.HasCICD,
+			CICDProvider:              cicdProvider,
+			MonitoringDetected:        globalInfra.HasMonitoring,
+			MonitoringTools:           globalInfra.MonitorTools,
+			PostAcquisitionInvestment: string(infraAssessment.InvestmentLevel),
 		}
 	}
 
 	// Build top risks and strengths
 	topRisks := buildTopRisks(agg)
-	topStrengths := buildTopStrengths(maintScore, secScore, handoffScore, infraScore, agg)
+	topStrengths := buildTopStrengths(maintScore, secScore, handoffScore, agg)
 
 	// Build summary
 	summary := models.Summary{
@@ -632,6 +669,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 			Security: &models.Security{
 				Grade:                &secGrade,
 				SecretsFound:         agg.SecretsCount,
+				SuppressedSecrets:    totalSuppressedSecrets,
 				SecretFindings:       allSecretFindings,
 				CVEs:                 allCVEs,
 				CVESummary:           cveSummary,
@@ -1047,7 +1085,7 @@ func buildTopRisks(agg scorer.AggregatedMetrics) []models.Risk {
 }
 
 // buildTopStrengths identifies top strengths from scores.
-func buildTopStrengths(maintScore, secScore, handoffScore, infraScore float64, agg scorer.AggregatedMetrics) []models.Strength {
+func buildTopStrengths(maintScore, secScore, handoffScore float64, agg scorer.AggregatedMetrics) []models.Strength {
 	var strengths []models.Strength
 
 	if secScore >= 90 && agg.SecretsCount == 0 {
@@ -1066,12 +1104,6 @@ func buildTopStrengths(maintScore, secScore, handoffScore, infraScore float64, a
 		strengths = append(strengths, models.Strength{
 			Category: "handoff_readiness",
 			Detail:   fmt.Sprintf("%.0f%% est. test coverage with %s documentation", agg.EstTestCoveragePct, agg.DocDensity),
-		})
-	}
-	if infraScore >= 80 {
-		strengths = append(strengths, models.Strength{
-			Category: "sre_infrastructure",
-			Detail:   "CI/CD, IaC, and monitoring detected",
 		})
 	}
 	if agg.HasGitHistory && agg.DaysSinceLastCommit <= 30 {
