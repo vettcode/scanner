@@ -103,8 +103,8 @@ detect_arch() {
 }
 
 validate_platform() {
-    os="$1"
-    arch="$2"
+    local os="$1"
+    local arch="$2"
     # Only these OS/arch combos have published builds
     case "${os}/${arch}" in
         darwin/amd64|darwin/arm64|linux/amd64|windows/amd64)
@@ -141,8 +141,8 @@ fetch_latest_version() {
 }
 
 download() {
-    url="$1"
-    dest="$2"
+    local url="$1"
+    local dest="$2"
     if command -v curl >/dev/null 2>&1; then
         curl -sSfL -o "$dest" "$url"
     elif command -v wget >/dev/null 2>&1; then
@@ -154,9 +154,9 @@ download() {
 }
 
 verify_checksum() {
-    archive="$1"
-    checksums_file="$2"
-    archive_name="$3"
+    local archive="$1"
+    local checksums_file="$2"
+    local archive_name="$3"
 
     # Anchor match to end of line to avoid substring matches
     expected="$(grep " ${archive_name}$" "$checksums_file" | awk '{print $1}')"
@@ -183,9 +183,9 @@ verify_checksum() {
 }
 
 extract() {
-    archive="$1"
-    dest="$2"
-    os="$3"
+    local archive="$1"
+    local dest="$2"
+    local os="$3"
 
     if [ "$os" = "windows" ]; then
         unzip -q "$archive" -d "$dest"
@@ -195,9 +195,9 @@ extract() {
 }
 
 install_binary() {
-    src="$1"
-    dest_dir="$2"
-    bin_name="$3"
+    local src="$1"
+    local dest_dir="$2"
+    local bin_name="$3"
 
     if [ ! -d "$dest_dir" ]; then
         mkdir -p "$dest_dir"

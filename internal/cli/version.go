@@ -20,7 +20,6 @@ var versionCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		out := cmd.OutOrStdout()
 		fmt.Fprintf(out, "vettcode %s\n", version)
-		fmt.Fprintf(out, "  commit:   %s\n", commit)
 		fmt.Fprintf(out, "  built:    %s\n", date)
 		fmt.Fprintf(out, "  platform: %s/%s\n", runtime.GOOS, runtime.GOARCH)
 	},

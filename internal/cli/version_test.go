@@ -20,7 +20,6 @@ func TestVersionCommand(t *testing.T) {
 
 	output := buf.String()
 	assert.Contains(t, output, "vettcode")
-	assert.Contains(t, output, "commit:")
 	assert.Contains(t, output, "built:")
 	assert.Contains(t, output, runtime.GOOS+"/"+runtime.GOARCH)
 }
