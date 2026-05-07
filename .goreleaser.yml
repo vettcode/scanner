@@ -14,8 +14,9 @@ before:
     - go vet ./...
 
 builds:
-  # Linux: CGO enabled for native tree-sitter compilation
-  - id: vettcode-linux
+  # Linux/Darwin: CGO enabled for native tree-sitter compilation.
+  # Darwin builds cross-compile from Linux using zig as the C compiler.
+  - id: vettcode
     main: ./cmd/vettcode
     binary: vettcode
     env:
@@ -26,14 +27,30 @@ builds:
       - -X github.com/vettcode/scanner/internal/cli.commit={{.Commit}}
       - -X github.com/vettcode/scanner/internal/cli.date={{.Date}}
     goos:
+      - darwin
       - linux
     goarch:
       - amd64
+      - arm64
+    ignore:
+      - goos: linux
+        goarch: arm64
+    overrides:
+      - goos: darwin
+        goarch: amd64
+        env:
+          - CGO_ENABLED=1
+          - CC=zig cc -target x86_64-macos
+          - CXX=zig c++ -target x86_64-macos
+      - goos: darwin
+        goarch: arm64
+        env:
+          - CGO_ENABLED=1
+          - CC=zig cc -target aarch64-macos
+          - CXX=zig c++ -target aarch64-macos
 
-  # Darwin + Windows: CGO disabled — tree-sitter grammars loaded at runtime.
-  # Cross-compiling CGO for darwin from Linux requires a macOS SDK; CGO=0
-  # avoids that while keeping the same runtime grammar-loading path as Windows.
-  - id: vettcode-nocgo
+  # Windows: CGO disabled — tree-sitter grammars loaded at runtime.
+  - id: vettcode-windows
     main: ./cmd/vettcode
     binary: vettcode
     env:
@@ -44,14 +61,9 @@ builds:
       - -X github.com/vettcode/scanner/internal/cli.commit={{.Commit}}
       - -X github.com/vettcode/scanner/internal/cli.date={{.Date}}
     goos:
-      - darwin
       - windows
     goarch:
       - amd64
-      - arm64
-    ignore:
-      - goos: windows
-        goarch: arm64
 
 archives:
   - id: default
@@ -120,6 +132,6 @@ dockers:
       - "--label=org.opencontainers.image.created={{ .Date }}"
       - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
     ids:
-      - vettcode-linux
+      - vettcode
     goos: linux
     goarch: amd64
