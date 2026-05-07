@@ -301,7 +301,7 @@ func isFatalCosignError(err error) bool {
 // per the co-sign API contract in Section 5.8.
 func classifyHTTPError(status int, body []byte, header http.Header) error {
 	var apiErr cosignErrorResponse
-	json.Unmarshal(body, &apiErr) // best-effort parse
+	_ = json.Unmarshal(body, &apiErr) // best-effort parse
 
 	switch status {
 	case http.StatusTooManyRequests: // 429

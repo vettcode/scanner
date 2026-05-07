@@ -49,13 +49,6 @@ func (c *ColorConfig) yellow(s string) string {
 	return ansiYellow + s + ansiReset
 }
 
-func (c *ColorConfig) cyan(s string) string {
-	if !c.Enabled {
-		return s
-	}
-	return ansiCyan + s + ansiReset
-}
-
 func (c *ColorConfig) gray(s string) string {
 	if !c.Enabled {
 		return s
@@ -81,23 +74,6 @@ func (c *ColorConfig) gradeColor(grade string) string {
 		return ansiRed + ansiBold + grade + ansiReset
 	default:
 		return grade
-	}
-}
-
-// severityColor colors a severity string.
-func (c *ColorConfig) severityColor(severity string) string {
-	if !c.Enabled {
-		return severity
-	}
-	switch severity {
-	case "critical":
-		return ansiRed + ansiBold + severity + ansiReset
-	case "high":
-		return ansiRed + severity + ansiReset
-	case "medium":
-		return ansiYellow + severity + ansiReset
-	default:
-		return severity
 	}
 }
 

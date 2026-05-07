@@ -13,7 +13,7 @@ import (
 func createFile(t *testing.T, dir, name, content string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
-	os.MkdirAll(filepath.Dir(path), 0755)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
 	require.NoError(t, os.WriteFile(path, []byte(content), 0644))
 	return path
 }

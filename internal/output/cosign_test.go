@@ -17,21 +17,21 @@ func TestCosign_Success(t *testing.T) {
 		switch r.URL.Path {
 		case cosignInitPath:
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(cosignInitResponse{
+			_ = json.NewEncoder(w).Encode(cosignInitResponse{
 				SessionID: "sess-123",
 				Nonce:     "nonce-abc",
 				ExpiresAt: "2026-03-13T11:00:00Z",
 			})
 		case cosignCompletePath:
 			var req cosignCompleteRequest
-			json.NewDecoder(r.Body).Decode(&req)
+			_ = json.NewDecoder(r.Body).Decode(&req)
 			assert.Equal(t, "sess-123", req.SessionID)
 			assert.NotEmpty(t, req.ScanChecksum)
 			assert.NotEmpty(t, req.ScannerSignature)
 			assert.Equal(t, ScannerKeyID, req.ScannerPublicKeyID)
 
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(cosignCompleteResponse{
+			_ = json.NewEncoder(w).Encode(cosignCompleteResponse{
 				PlatformCosignature: "platform-sig-xyz",
 				PlatformPublicKeyID: "vettcode-platform-key-2026-03",
 			})
@@ -95,7 +95,7 @@ func TestCosign_RateLimited_RetriesThenFallback(t *testing.T) {
 		atomic.AddInt32(&attempts, 1)
 		w.Header().Set("Retry-After", "0")
 		w.WriteHeader(http.StatusTooManyRequests)
-		json.NewEncoder(w).Encode(cosignErrorResponse{
+		_ = json.NewEncoder(w).Encode(cosignErrorResponse{
 			Error:   "rate_limit_exceeded",
 			Message: "Too many requests",
 		})

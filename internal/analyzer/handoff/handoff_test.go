@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vettcode/scanner/internal/language"
 	"github.com/vettcode/scanner/internal/walker"
 )
@@ -38,7 +39,7 @@ func TestComputeTestCoverage_Empty(t *testing.T) {
 func TestComputeDocDensity_High(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Hi"), 0644)
-	os.MkdirAll(filepath.Join(dir, "docs"), 0755)
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "docs"), 0755))
 
 	wr := &walker.WalkResult{
 		Files: []walker.FileInfo{
@@ -82,7 +83,7 @@ func TestAnalyze_FullProject(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, ".env.example"), []byte("KEY=val\nSECRET=s\n"), 0644)
 	os.WriteFile(filepath.Join(dir, "jest.config.js"), []byte("module.exports = {}"), 0644)
 	os.WriteFile(filepath.Join(dir, ".nycrc"), []byte("{}"), 0644)
-	os.MkdirAll(filepath.Join(dir, "docs"), 0755)
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "docs"), 0755))
 
 	wr := &walker.WalkResult{
 		Files: []walker.FileInfo{

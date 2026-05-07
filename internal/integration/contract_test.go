@@ -169,7 +169,6 @@ func TestGenerateContractFixtures(t *testing.T) {
 
 			// ----- Dependencies -----
 			var allDeps []deps.Dependency
-			var allEcosystems []string
 			ecoSet := make(map[string]bool)
 			for _, dr := range spec.depRoots {
 				depRoot := root
@@ -179,10 +178,7 @@ func TestGenerateContractFixtures(t *testing.T) {
 				depResult := deps.ParseDependencies(depRoot)
 				allDeps = append(allDeps, depResult.Dependencies...)
 				for _, eco := range depResult.Ecosystems {
-					if !ecoSet[eco] {
-						ecoSet[eco] = true
-						allEcosystems = append(allEcosystems, eco)
-					}
+					ecoSet[eco] = true
 				}
 			}
 

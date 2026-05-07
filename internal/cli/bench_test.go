@@ -57,7 +57,7 @@ func generateSyntheticRepo(b *testing.B, dir string, targetLOC int) {
 	}
 
 	// Add a go.mod so Go files are parseable
-	goMod := fmt.Sprintf("module synthetic\n\ngo 1.23\n")
+	goMod := "module synthetic\n\ngo 1.23\n"
 	require.NoError(b, os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0644))
 
 	// Add a package.json for dep detection

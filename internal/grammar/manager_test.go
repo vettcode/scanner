@@ -85,7 +85,7 @@ func TestEnsureGrammar_MockDownload_CorrectChecksum(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write(content)
+		_, _ = w.Write(content)
 	}))
 	defer srv.Close()
 
@@ -117,7 +117,7 @@ func TestEnsureGrammar_MockDownload_WrongChecksum(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write(content)
+		_, _ = w.Write(content)
 	}))
 	defer srv.Close()
 
@@ -159,7 +159,7 @@ func TestEnsureGrammar_CacheHit_NoDownload(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		downloadCount++
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("wasm content"))
+		_, _ = w.Write([]byte("wasm content"))
 	}))
 	defer srv.Close()
 
