@@ -41,9 +41,15 @@ builds:
         goarch: arm64
     overrides:
       - goos: darwin
+        goarch: amd64
+        env:
+          - CGO_ENABLED=0
+      - goos: darwin
+        goarch: arm64
         env:
           - CGO_ENABLED=0
       - goos: windows
+        goarch: amd64
         env:
           - CGO_ENABLED=0
 
