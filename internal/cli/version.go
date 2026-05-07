@@ -10,7 +10,6 @@ import (
 // These are set via ldflags at build time.
 var (
 	version = "dev"
-	commit  = "unknown"
 	date    = "unknown"
 )
 

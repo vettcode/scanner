@@ -25,7 +25,6 @@ builds:
     ldflags:
       - -s -w
       - -X github.com/vettcode/scanner/internal/cli.version={{.Version}}
-      - -X github.com/vettcode/scanner/internal/cli.commit={{.Commit}}
       - -X github.com/vettcode/scanner/internal/cli.date={{.Date}}
     goos:
       - darwin
