@@ -14,8 +14,9 @@ before:
     - go vet ./...
 
 builds:
-  # Linux/Darwin: CGO enabled for native tree-sitter compilation.
-  # Darwin builds cross-compile from Linux using zig as the C compiler.
+  # Linux: CGO enabled — native compilation on ubuntu runner.
+  # Darwin/Windows: CGO disabled — tree-sitter grammars loaded at runtime.
+  # CGO cross-compilation for darwin is not supported from Linux without the macOS SDK.
   - id: vettcode
     main: ./cmd/vettcode
     binary: vettcode
@@ -29,41 +30,22 @@ builds:
     goos:
       - darwin
       - linux
+      - windows
     goarch:
       - amd64
       - arm64
     ignore:
       - goos: linux
         goarch: arm64
+      - goos: windows
+        goarch: arm64
     overrides:
       - goos: darwin
-        goarch: amd64
         env:
-          - CGO_ENABLED=1
-          - CC=zig cc -target x86_64-macos
-          - CXX=zig c++ -target x86_64-macos
-      - goos: darwin
-        goarch: arm64
+          - CGO_ENABLED=0
+      - goos: windows
         env:
-          - CGO_ENABLED=1
-          - CC=zig cc -target aarch64-macos
-          - CXX=zig c++ -target aarch64-macos
-
-  # Windows: CGO disabled — tree-sitter grammars loaded at runtime.
-  - id: vettcode-windows
-    main: ./cmd/vettcode
-    binary: vettcode
-    env:
-      - CGO_ENABLED=0
-    ldflags:
-      - -s -w
-      - -X github.com/vettcode/scanner/internal/cli.version={{.Version}}
-      - -X github.com/vettcode/scanner/internal/cli.commit={{.Commit}}
-      - -X github.com/vettcode/scanner/internal/cli.date={{.Date}}
-    goos:
-      - windows
-    goarch:
-      - amd64
+          - CGO_ENABLED=0
 
 archives:
   - id: default
