@@ -1,0 +1,22 @@
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - gosimple
+    - unused
+
+linters-settings:
+  errcheck:
+    # Ignore error returns from these common patterns in non-test code
+    exclude-functions:
+      - (net/http.ResponseWriter).Write
+
+issues:
+  exclude-rules:
+    # Test files: unchecked os.WriteFile / os.MkdirAll / json encode/decode
+    # in test HTTP handlers and helpers are intentional — a failure causes
+    # the test to fail through assertion mismatches, not panics.
+    - path: _test\.go
+      linters:
+        - errcheck
