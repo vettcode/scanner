@@ -13,6 +13,10 @@ BINARY_NAME="vettcode"
 DEFAULT_INSTALL_DIR="/usr/local/bin"
 
 main() {
+    echo ""
+    echo "  VettCode Scanner Installer"
+    echo ""
+
     install_dir="${VETTCODE_INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
 
     os="$(detect_os)"
@@ -26,6 +30,7 @@ main() {
 
     # Validate OS/arch combination has a published build
     validate_platform "$os" "$arch"
+    echo "Detected platform: ${os}/${arch}"
 
     version="${VETTCODE_VERSION:-$(fetch_latest_version)}"
     if [ -z "$version" ]; then
@@ -51,7 +56,7 @@ main() {
     tmpdir="$(mktemp -d)"
     trap 'rm -rf "$tmpdir"' EXIT
 
-    echo "Downloading ${BINARY_NAME} ${version} for ${os}/${arch}..."
+    echo "Downloading ${BINARY_NAME} ${version}..."
     download "$download_url" "$tmpdir/$archive"
     download "$checksum_url" "$tmpdir/checksums.txt"
 
@@ -66,7 +71,18 @@ main() {
 
     echo ""
     echo "${BINARY_NAME} ${version} installed to ${install_dir}/${bin_name}"
-    echo "Run '${BINARY_NAME} version' to verify."
+
+    # Post-install verification
+    if command -v "$BINARY_NAME" >/dev/null 2>&1; then
+        echo ""
+        "$BINARY_NAME" version
+        echo ""
+        echo "Ready! Run 'vettcode scan ./your-repo' to get started."
+    else
+        echo ""
+        echo "Note: ${install_dir} may not be in your PATH."
+        echo "Add it with:  export PATH=\"${install_dir}:\$PATH\""
+    fi
 }
 
 detect_os() {
@@ -102,11 +118,23 @@ validate_platform() {
 }
 
 fetch_latest_version() {
-    url="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
+    # Try redirect-based detection first (no API rate limit)
     if command -v curl >/dev/null 2>&1; then
-        curl -sSfL "$url" 2>/dev/null | grep '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/'
+        tag="$(curl -sSfL -o /dev/null -w '%{redirect_url}' \
+            "https://github.com/${GITHUB_REPO}/releases/latest" 2>/dev/null \
+            | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+[^ ]*$' || true)"
+        if [ -n "$tag" ]; then
+            echo "$tag"
+            return
+        fi
+    fi
+
+    # Fallback: GitHub API (may be rate-limited for unauthenticated requests)
+    api_url="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
+    if command -v curl >/dev/null 2>&1; then
+        curl -sSfL "$api_url" 2>/dev/null | grep '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/'
     elif command -v wget >/dev/null 2>&1; then
-        wget -qO- "$url" 2>/dev/null | grep '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/'
+        wget -qO- "$api_url" 2>/dev/null | grep '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/'
     else
         echo ""
     fi

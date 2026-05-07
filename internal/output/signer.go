@@ -4,6 +4,8 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/vettcode/scanner/pkg/models"
 )
@@ -12,21 +14,84 @@ const (
 	// ScannerKeyID identifies the embedded signing key pair.
 	// Rotated with each major scanner release.
 	ScannerKeyID = "vettcode-scanner-key-2026-03"
+
+	// envSigningKey is the environment variable holding the base64-encoded
+	// Ed25519 private key seed (32 bytes). Set this in production builds or
+	// CI to inject the real signing key.
+	envSigningKey = "VETTCODE_SIGNING_KEY"
+
+	// envSigningKeyFile is the environment variable holding a file path to
+	// a file containing the raw 32-byte Ed25519 seed. Alternative to
+	// VETTCODE_SIGNING_KEY for environments that use file-based secrets
+	// (e.g., Kubernetes secrets, Docker secrets at /run/secrets/).
+	envSigningKeyFile = "VETTCODE_SIGNING_KEY_FILE"
 )
 
-// scannerPrivateKey is the embedded Ed25519 private key for signing scan results.
-// In production, this would be obfuscated and rotated per major release.
-// This is a development key — the production key is injected at build time.
+// signingKeySource records where the active key was loaded from (for diagnostics).
+var signingKeySource string
+
+// scannerPrivateKey is the Ed25519 private key for signing scan results.
 var scannerPrivateKey ed25519.PrivateKey
 var scannerPublicKey ed25519.PublicKey
 
 func init() {
-	// Generate a deterministic dev key from a seed.
-	// Production builds replace this with the real key via ldflags or go:embed.
+	loadSigningKey()
+}
+
+// loadSigningKey tries, in order:
+//  1. VETTCODE_SIGNING_KEY env var (base64-encoded 32-byte seed)
+//  2. VETTCODE_SIGNING_KEY_FILE env var (path to file containing raw 32-byte seed)
+//  3. Fallback: deterministic dev key (NEVER use in production releases)
+func loadSigningKey() {
+	// Option 1: base64-encoded seed in env var
+	if encoded := os.Getenv(envSigningKey); encoded != "" {
+		seed, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
+		if err != nil {
+			// Try RawStdEncoding (no padding)
+			seed, err = base64.RawStdEncoding.DecodeString(strings.TrimSpace(encoded))
+		}
+		if err == nil && len(seed) == ed25519.SeedSize {
+			scannerPrivateKey = ed25519.NewKeyFromSeed(seed)
+			scannerPublicKey = scannerPrivateKey.Public().(ed25519.PublicKey)
+			signingKeySource = "env:" + envSigningKey
+			return
+		}
+		// Bad key data — fall through to next option with a stderr warning
+		fmt.Fprintf(os.Stderr, "WARN: %s is set but contains invalid key data (expected %d-byte base64 seed); falling back\n",
+			envSigningKey, ed25519.SeedSize)
+	}
+
+	// Option 2: seed read from a file
+	if keyPath := os.Getenv(envSigningKeyFile); keyPath != "" {
+		seed, err := os.ReadFile(keyPath)
+		if err == nil && len(seed) == ed25519.SeedSize {
+			scannerPrivateKey = ed25519.NewKeyFromSeed(seed)
+			scannerPublicKey = scannerPrivateKey.Public().(ed25519.PublicKey)
+			signingKeySource = "file:" + keyPath
+			return
+		}
+		fmt.Fprintf(os.Stderr, "WARN: %s=%s could not be loaded (err=%v, len=%d); falling back\n",
+			envSigningKeyFile, keyPath, err, len(seed))
+	}
+
+	// Option 3: deterministic dev key (for development and testing only)
 	seed := make([]byte, ed25519.SeedSize)
 	copy(seed, []byte("vettcode-dev-signing-key-seed00"))
 	scannerPrivateKey = ed25519.NewKeyFromSeed(seed)
 	scannerPublicKey = scannerPrivateKey.Public().(ed25519.PublicKey)
+	signingKeySource = "dev-fallback"
+}
+
+// SigningKeySource returns a string describing where the active signing key
+// was loaded from: "env:VETTCODE_SIGNING_KEY", "file:/path", or "dev-fallback".
+func SigningKeySource() string {
+	return signingKeySource
+}
+
+// IsDevKey returns true if the scanner is using the built-in dev fallback key
+// rather than a production key. Useful for printing warnings in release builds.
+func IsDevKey() bool {
+	return signingKeySource == "dev-fallback"
 }
 
 // SignScanResult computes the integrity block for a ScanResult.

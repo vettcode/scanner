@@ -1,5 +1,13 @@
 version: 2
 
+# GoReleaser defaults ProjectName to the repo name ("scanner"), but archives
+# and the install script expect "vettcode" as the prefix.
+project_name: vettcode
+
+# For local testing: goreleaser release --snapshot --clean
+snapshot:
+  version_template: "{{ .Tag }}-next"
+
 before:
   hooks:
     - go mod tidy
