@@ -30,6 +30,9 @@ jobs:
       - name: Test
         run: go test -race ./...
 
+      - name: Restore testdata modified by tests
+        run: git restore testdata/
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
