@@ -1,69 +1,21 @@
-# ─────────────────────────────────────────────────────
-# Stage 1: Build the scanner binary
-# ─────────────────────────────────────────────────────
-FROM golang:1.23-alpine AS builder
+# GoReleaser provides the pre-built linux/amd64 binary in the build context.
+# debian:12-slim shares glibc with the ubuntu CI runner, ensuring compatibility.
+FROM debian:12-slim
 
-RUN apk add --no-cache gcc musl-dev git
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -r vettcode \
+    && useradd -r -g vettcode -d /home/vettcode -m -s /sbin/nologin vettcode
 
-WORKDIR /src
-COPY go.mod go.sum ./
-RUN go mod download
+RUN mkdir -p /home/vettcode/.vettcode/grammars \
+    && chown -R vettcode:vettcode /home/vettcode
 
-COPY . .
+COPY vettcode /usr/local/bin/vettcode
 
-ARG VERSION=dev
-ARG COMMIT=unknown
-ARG DATE=unknown
-
-RUN CGO_ENABLED=1 go build \
-    -ldflags "-s -w \
-      -X github.com/vettcode/scanner/internal/cli.version=${VERSION} \
-      -X github.com/vettcode/scanner/internal/cli.commit=${COMMIT} \
-      -X github.com/vettcode/scanner/internal/cli.date=${DATE}" \
-    -o /vettcode ./cmd/vettcode
-
-# ─────────────────────────────────────────────────────
-# Stage 2: Bundle grammars (placeholder — populate from
-# GCS or local cache once grammar files are published)
-# ─────────────────────────────────────────────────────
-FROM alpine:3.19 AS grammars
-
-# When grammar WASM files are available, COPY or download them here.
-# For now, create the directory structure so the scanner's grammar
-# manager finds it and skips downloads.
-#
-# Production build command will add:
-#   COPY grammars/ /grammars/0.1.0/
-#
-# Or download at build time:
-#   RUN wget -q https://storage.googleapis.com/vettcode-grammars/0.1.0/tree-sitter-javascript.wasm ...
-RUN mkdir -p /grammars/0.1.0
-
-# ─────────────────────────────────────────────────────
-# Stage 3: Runtime — minimal image
-# ─────────────────────────────────────────────────────
-FROM alpine:3.19
-
-# git is required for development activity analysis (git log)
-# ca-certificates for TLS (co-signing, grammar downloads, version check)
-RUN apk add --no-cache git ca-certificates \
-    && addgroup -S vettcode \
-    && adduser -S -G vettcode -h /home/vettcode -s /sbin/nologin vettcode
-
-# Scanner binary
-COPY --from=builder /vettcode /usr/local/bin/vettcode
-
-# Pre-bundled grammars (per AC-2.7, AC-4.7: no downloads needed in Docker mode)
-COPY --from=grammars /grammars /home/vettcode/.vettcode/grammars
-
-# Ensure the vettcode user owns its home directory
-RUN chown -R vettcode:vettcode /home/vettcode
-
-# Run as non-root
 USER vettcode
 WORKDIR /scan
 
-# Labels (populated by GoReleaser build args)
 ARG VERSION=dev
 ARG COMMIT=unknown
 ARG DATE=unknown
