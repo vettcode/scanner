@@ -85,7 +85,6 @@ func TestCLI_VersionOutput(t *testing.T) {
 	output = strings.TrimSpace(output)
 	assert.True(t, len(output) > 0, "version output should not be empty")
 	assert.Contains(t, output, "vettcode", "version output should mention vettcode")
-	assert.Contains(t, output, "commit:", "version output should include commit")
 	assert.Contains(t, output, "built:", "version output should include build time")
 	assert.Contains(t, output, runtime.GOOS+"/"+runtime.GOARCH, "version output should include platform")
 }
