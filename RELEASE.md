@@ -57,18 +57,20 @@ Store the seed securely (e.g., 1Password vault, GCP Secret Manager). Back it up 
 
 ### 6. DNS — Install Script
 
-Set up `get.vettcode.com` to serve `scripts/install.sh`:
+`get.vettcode.com` is served from a GCS bucket with Cloudflare as the SSL proxy.
 
-**Option A: GitHub Pages**
-- Create a `vettcode/get.vettcode.com` repo
-- Copy `scripts/install.sh` as `index.html` with `Content-Type: text/plain`
-- Configure custom domain in GitHub Pages settings
+**Setup (already complete for production):**
+1. GCS: create a bucket named `get.vettcode.com` in project `vettcode-prod`, set to public read
+2. Upload `install.sh` as `index.html`: `gsutil cp -a public-read install.sh gs://get.vettcode.com/index.html`
+3. Cloudflare: add a CNAME record `get` → `c.storage.googleapis.com` with proxy (orange cloud) enabled for SSL
+4. Google Search Console: verify domain ownership (required by GCS for domain-named buckets)
 
-**Option B: Vercel**
-- Deploy a static site that serves the install script at `/`
-- Configure the `get.vettcode.com` domain in Vercel
+**To update the install script:**
+```bash
+gsutil cp -a public-read install.sh gs://get.vettcode.com/index.html
+```
 
-**DNS record:** `get.vettcode.com` → CNAME to your host (GitHub Pages or Vercel)
+**DNS record:** `get.vettcode.com` → CNAME `c.storage.googleapis.com` (proxied via Cloudflare)
 
 ### 7. Grammar Hosting (GCS)
 
@@ -102,8 +104,8 @@ Set up `get.vettcode.com` to serve `scripts/install.sh`:
 git checkout main
 git pull origin main
 
-# Create a signed tag
-git tag -s v1.0.0 -m "v1.0.0: Initial release"
+# Create a tag
+git tag v1.0.0
 
 # Push the tag — triggers the release pipeline
 git push origin v1.0.0

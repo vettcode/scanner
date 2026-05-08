@@ -42,7 +42,7 @@ curl -sSfL https://get.vettcode.com | sh
 ### Docker
 
 ```bash
-docker run --rm -v $(pwd):/src vettcode/scanner scan /src
+docker run --rm -v $(pwd):/scan vettcode/scanner scan /scan
 ```
 
 ### From Source
