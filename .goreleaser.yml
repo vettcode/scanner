@@ -26,6 +26,7 @@ builds:
       - -s -w
       - -X github.com/vettcode/scanner/internal/cli.version={{.Version}}
       - -X github.com/vettcode/scanner/internal/cli.date={{.Date}}
+      - -X github.com/vettcode/scanner/internal/output.embeddedSigningKeySeed={{.Env.SCANNER_SIGNING_SEED}}
     goos:
       - darwin
       - linux
