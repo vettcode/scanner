@@ -61,15 +61,18 @@ func CanonicalChecksum(v interface{}) (string, []byte, error) {
 	return checksumBytes(data), data, nil
 }
 
-// integrityComputedFields are the integrity sub-fields that are excluded
-// from the hash because they are the output of signing (circular dependency).
-// The nonce, scanner_public_key_id, and cosigned fields ARE included in the
-// hash so the nonce binds the co-sign session to the scan data.
+// integrityComputedFields are the integrity sub-fields excluded from the hash.
+// These are either the signature outputs themselves (circular dependency) or
+// fields that are set AFTER signing completes (cosigned, verification_level).
+// The nonce and scanner_public_key_id ARE included — the nonce binds the
+// co-sign session to this specific scan data.
 var integrityComputedFields = map[string]bool{
-	"scan_checksum":        true,
-	"scanner_signature":    true,
-	"platform_cosignature": true,
+	"scan_checksum":          true,
+	"scanner_signature":      true,
+	"platform_cosignature":   true,
 	"platform_public_key_id": true,
+	"cosigned":               true,
+	"verification_level":     true,
 }
 
 // CanonicalChecksumForSigning serializes v to canonical JSON, strips only
