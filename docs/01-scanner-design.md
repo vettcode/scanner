@@ -844,7 +844,7 @@ No interactive prompt — the user ran `vettcode scan`, they expect it to work. 
 4. Sign the hash with the embedded Ed25519 private key
 5. Output:
    - `integrity.scan_checksum`: the SHA-256 hash of the full scan JSON (excluding `integrity` block)
-   - `integrity.scanner_public_key_id`: identifier for the key pair (e.g., "vettcode-scanner-key-2026-03")
+   - `integrity.scanner_public_key_id`: identifier for the key pair (e.g., "vettcode-scanner-key-2026-05")
    - `integrity.scanner_signature`: the Ed25519 signature (base64-encoded)
 
 **Canonical JSON serialization rules:**
@@ -889,7 +889,7 @@ These test vectors are included in the scanner's unit test suite (SC-053) and th
 **Key rotation coordination:**
 
 - The scanner key is rotated with each **major** scanner release (not minor/patch)
-- Key ID format: `vettcode-scanner-key-YYYY-MM` (e.g., `vettcode-scanner-key-2026-03`)
+- Key ID format: `vettcode-scanner-key-YYYY-MM` (e.g., `vettcode-scanner-key-2026-05`)
 - Before each major release, the new public key must be registered in the platform backend's public key registry. This is a **release checklist item** — shipping a scanner with a key the platform doesn't recognize will cause all uploads from that version to fail.
 - Old public keys remain valid on the platform for the version compatibility overlap period (see [Section 9, Version Compatibility Policy](../00b-product-overview-technical.md#version-compatibility-policy-applies-to-all-data-contracts))
 
@@ -1421,7 +1421,7 @@ The JSON output conforms exactly to the schema defined in Section 9a of the prod
 ```jsonc
 "integrity": {
   "scan_checksum": "sha256-of-canonical-json",
-  "scanner_public_key_id": "vettcode-scanner-key-2026-03",
+  "scanner_public_key_id": "vettcode-scanner-key-2026-05",
   "scanner_signature": "ed25519-signature-by-scanner",
   "cosign_nonce": "server-issued-nonce-hex",         // null if --offline
   "platform_cosignature": "ed25519-cosignature",     // null if --offline
