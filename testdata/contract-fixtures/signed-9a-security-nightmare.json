@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "scan_id": "contract-test-security-nightmare",
-  "timestamp": "2026-05-11T14:34:51Z",
+  "timestamp": "2026-05-11T14:50:24Z",
   "scanner_version": "0.1.0-test",
   "repositories": [
     {
@@ -132,9 +132,9 @@
   },
   "warnings": [],
   "integrity": {
-    "scan_checksum": "ddbdbe5d0a4f1af0885ba4e5f6f7059e3783bff4ff6afd206fe7fb179b774346",
-    "scanner_public_key_id": "vettcode-scanner-key-2026-05",
-    "scanner_signature": "iD4DOK8ixBotRCSgUl19ydoRBIGjNM3OdfFnP0/iLnPQ1X7xGp1h79aKNUAdKDsTBk5KRKkwyIrtFpRvCnlCAQ==",
+    "scan_checksum": "c969f8d142c93550edb5675e57dd4daee222f408da69ecc811fc2a1e9ec39568",
+    "scanner_public_key_id": "vettcode-scanner-key-2026-03",
+    "scanner_signature": "DYGaUzgOfDdW2u/1x6rUIfrPwGvNmuQUZnschlRSICvHYRkYu/HLDq/X9KkU+PfYxQLL6RJ3hH+71U0JMPQtAQ==",
     "cosign_nonce": null,
     "platform_cosignature": null,
     "platform_public_key_id": null,
