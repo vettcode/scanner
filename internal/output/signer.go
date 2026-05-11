@@ -55,7 +55,8 @@ func init() {
 
 // loadSigningKey tries, in order:
 //  1. Embedded seed (injected at build time via ldflags — production releases)
-//  2. VETTCODE_SIGNING_KEY env var (base64-encoded 32-byte seed — overrides embedded)
+//     If present and valid, options 2–4 are never reached.
+//  2. VETTCODE_SIGNING_KEY env var (base64-encoded 32-byte seed — dev override only)
 //  3. VETTCODE_SIGNING_KEY_FILE env var (path to file containing raw 32-byte seed)
 //  4. Fallback: deterministic dev key (NEVER use in production releases)
 func loadSigningKey() {
@@ -75,7 +76,7 @@ func loadSigningKey() {
 		fmt.Fprintf(os.Stderr, "WARN: embedded signing key seed is invalid; falling back\n")
 	}
 
-	// Option 1: base64-encoded seed in env var (overrides embedded key)
+	// Option 1: base64-encoded seed in env var (only reached when no embedded key)
 	if encoded := os.Getenv(envSigningKey); encoded != "" {
 		seed, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
 		if err != nil {
