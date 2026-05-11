@@ -31,6 +31,14 @@ const (
 	envSigningKeyFile = "VETTCODE_SIGNING_KEY_FILE"
 )
 
+// embeddedSigningKeySeed is injected at build time via:
+//
+//	-ldflags "-X github.com/vettcode/scanner/internal/output.embeddedSigningKeySeed=<base64>"
+//
+// When set, it takes priority over VETTCODE_SIGNING_KEY / VETTCODE_SIGNING_KEY_FILE.
+// Release builds set this to the production key seed; dev builds leave it empty.
+var embeddedSigningKeySeed string
+
 // signingKeySource records where the active key was loaded from (for diagnostics).
 var signingKeySource string
 
@@ -46,11 +54,28 @@ func init() {
 }
 
 // loadSigningKey tries, in order:
-//  1. VETTCODE_SIGNING_KEY env var (base64-encoded 32-byte seed)
-//  2. VETTCODE_SIGNING_KEY_FILE env var (path to file containing raw 32-byte seed)
-//  3. Fallback: deterministic dev key (NEVER use in production releases)
+//  1. Embedded seed (injected at build time via ldflags — production releases)
+//  2. VETTCODE_SIGNING_KEY env var (base64-encoded 32-byte seed — overrides embedded)
+//  3. VETTCODE_SIGNING_KEY_FILE env var (path to file containing raw 32-byte seed)
+//  4. Fallback: deterministic dev key (NEVER use in production releases)
 func loadSigningKey() {
-	// Option 1: base64-encoded seed in env var
+	// Option 0: seed embedded at build time via ldflags (production binary)
+	if embeddedSigningKeySeed != "" {
+		seed, err := base64.StdEncoding.DecodeString(strings.TrimSpace(embeddedSigningKeySeed))
+		if err != nil {
+			seed, err = base64.RawStdEncoding.DecodeString(strings.TrimSpace(embeddedSigningKeySeed))
+		}
+		if err == nil && len(seed) == ed25519.SeedSize {
+			scannerPrivateKey = ed25519.NewKeyFromSeed(seed)
+			scannerPublicKey = scannerPrivateKey.Public().(ed25519.PublicKey)
+			signingKeySource = "embedded"
+			activeKeyID = ScannerKeyID
+			return
+		}
+		fmt.Fprintf(os.Stderr, "WARN: embedded signing key seed is invalid; falling back\n")
+	}
+
+	// Option 1: base64-encoded seed in env var (overrides embedded key)
 	if encoded := os.Getenv(envSigningKey); encoded != "" {
 		seed, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
 		if err != nil {
