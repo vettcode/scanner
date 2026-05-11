@@ -13,7 +13,7 @@ import (
 const (
 	// ScannerKeyID identifies the embedded signing key pair.
 	// Rotated with each major scanner release.
-	ScannerKeyID = "vettcode-scanner-key-2026-03"
+	ScannerKeyID = "vettcode-scanner-key-2026-05"
 
 	// envSigningKey is the environment variable holding the base64-encoded
 	// Ed25519 private key seed (32 bytes). Set this in production builds or
