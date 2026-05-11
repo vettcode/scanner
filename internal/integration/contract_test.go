@@ -489,7 +489,7 @@ func TestGenerateContractFixtures(t *testing.T) {
 			assert.Equal(t, 1, roundTrip.RepoCount)
 			assert.NotEmpty(t, roundTrip.Integrity.ScanChecksum)
 			assert.NotEmpty(t, roundTrip.Integrity.ScannerSignature)
-			assert.Equal(t, output.ScannerKeyID, roundTrip.Integrity.ScannerPublicKeyID)
+			assert.Equal(t, output.ActiveKeyID(), roundTrip.Integrity.ScannerPublicKeyID)
 
 			// ----- Build scoring fixture -----
 			sf := scoringFixture{

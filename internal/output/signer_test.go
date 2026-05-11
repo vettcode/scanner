@@ -47,7 +47,7 @@ func TestSignScanResult(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, result.Integrity.ScanChecksum)
-	assert.Equal(t, ScannerKeyID, result.Integrity.ScannerPublicKeyID)
+	assert.Equal(t, ActiveKeyID(), result.Integrity.ScannerPublicKeyID)
 	assert.NotEmpty(t, result.Integrity.ScannerSignature)
 	assert.False(t, result.Integrity.Cosigned)
 	assert.Nil(t, result.Integrity.CosignNonce)
@@ -181,6 +181,8 @@ func TestScannerKeyID_MatchesExpectedFormat(t *testing.T) {
 	keyIDPattern := regexp.MustCompile(`^vettcode-scanner-key-\d{4}-\d{2}$`)
 	assert.Regexp(t, keyIDPattern, ScannerKeyID,
 		"ScannerKeyID should match ^vettcode-scanner-key-\\d{4}-\\d{2}$")
+	assert.Regexp(t, keyIDPattern, ActiveKeyID(),
+		"ActiveKeyID() should match ^vettcode-scanner-key-\\d{4}-\\d{2}$")
 }
 
 func TestSignScanResult_VerificationLevelSelfReported(t *testing.T) {

@@ -11,9 +11,13 @@ import (
 )
 
 const (
-	// ScannerKeyID identifies the embedded signing key pair.
-	// Rotated with each major scanner release.
+	// ScannerKeyID is the key ID for the production signing key (2026-05 rotation).
+	// Used when VETTCODE_SIGNING_KEY or VETTCODE_SIGNING_KEY_FILE is set.
 	ScannerKeyID = "vettcode-scanner-key-2026-05"
+
+	// devScannerKeyID is the key ID for the dev fallback key.
+	// Only used when no production key is configured.
+	devScannerKeyID = "vettcode-scanner-key-2026-03"
 
 	// envSigningKey is the environment variable holding the base64-encoded
 	// Ed25519 private key seed (32 bytes). Set this in production builds or
@@ -29,6 +33,9 @@ const (
 
 // signingKeySource records where the active key was loaded from (for diagnostics).
 var signingKeySource string
+
+// activeKeyID is the key ID that matches the currently loaded private key.
+var activeKeyID string
 
 // scannerPrivateKey is the Ed25519 private key for signing scan results.
 var scannerPrivateKey ed25519.PrivateKey
@@ -54,6 +61,7 @@ func loadSigningKey() {
 			scannerPrivateKey = ed25519.NewKeyFromSeed(seed)
 			scannerPublicKey = scannerPrivateKey.Public().(ed25519.PublicKey)
 			signingKeySource = "env:" + envSigningKey
+			activeKeyID = ScannerKeyID
 			return
 		}
 		// Bad key data — fall through to next option with a stderr warning
@@ -68,6 +76,7 @@ func loadSigningKey() {
 			scannerPrivateKey = ed25519.NewKeyFromSeed(seed)
 			scannerPublicKey = scannerPrivateKey.Public().(ed25519.PublicKey)
 			signingKeySource = "file:" + keyPath
+			activeKeyID = ScannerKeyID
 			return
 		}
 		fmt.Fprintf(os.Stderr, "WARN: %s=%s could not be loaded (err=%v, len=%d); falling back\n",
@@ -80,12 +89,21 @@ func loadSigningKey() {
 	scannerPrivateKey = ed25519.NewKeyFromSeed(seed)
 	scannerPublicKey = scannerPrivateKey.Public().(ed25519.PublicKey)
 	signingKeySource = "dev-fallback"
+	activeKeyID = devScannerKeyID
 }
 
 // SigningKeySource returns a string describing where the active signing key
 // was loaded from: "env:VETTCODE_SIGNING_KEY", "file:/path", or "dev-fallback".
 func SigningKeySource() string {
 	return signingKeySource
+}
+
+// ActiveKeyID returns the key ID that will be embedded in signed scan results.
+// Matches the currently loaded private key: ScannerKeyID when a production key
+// is configured via VETTCODE_SIGNING_KEY or VETTCODE_SIGNING_KEY_FILE, or the
+// dev fallback key ID otherwise.
+func ActiveKeyID() string {
+	return activeKeyID
 }
 
 // IsDevKey returns true if the scanner is using the built-in dev fallback key
@@ -104,7 +122,7 @@ func SignScanResult(result *models.ScanResult) error {
 
 	// Set non-computed fields before hashing so they're included
 	result.Integrity = models.Integrity{
-		ScannerPublicKeyID: ScannerKeyID,
+		ScannerPublicKeyID: activeKeyID,
 		CosignNonce:        existingNonce,
 		Cosigned:           false,
 		VerificationLevel:  models.VerificationSelfReported,

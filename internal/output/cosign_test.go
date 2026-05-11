@@ -28,7 +28,7 @@ func TestCosign_Success(t *testing.T) {
 			assert.Equal(t, "sess-123", req.SessionID)
 			assert.NotEmpty(t, req.ScanChecksum)
 			assert.NotEmpty(t, req.ScannerSignature)
-			assert.Equal(t, ScannerKeyID, req.ScannerPublicKeyID)
+			assert.Equal(t, ActiveKeyID(), req.ScannerPublicKeyID)
 
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(cosignCompleteResponse{
